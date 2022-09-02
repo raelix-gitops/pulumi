@@ -14,7 +14,6 @@
 
 import execa from "execa";
 import { getStore } from "../runtime/state";
-
 import { createCommandError } from "./errors";
 
 /** @internal */
