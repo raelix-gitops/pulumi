@@ -2983,6 +2983,16 @@ func (ctx *updateContext) GetProgramDependencies(
 	return nil, status.Errorf(codes.Unimplemented, "method GetProgramDependencies not implemented")
 }
 
+func (ctx *updateContext) GenerateProject(
+	_ context.Context, _ *pulumirpc.GenerateProjectRequest) (*pulumirpc.GenerateProjectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateProject not implemented")
+}
+
+func (ctx *updateContext) GeneratePackage(
+	_ context.Context, _ *pulumirpc.GeneratePackageRequest) (*pulumirpc.GeneratePackageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GeneratePackage not implemented")
+}
+
 func TestLanguageClient(t *testing.T) {
 	t.Parallel()
 

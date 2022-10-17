@@ -1,5 +1,5 @@
 PROJECT_NAME     := Pulumi Python SDK
-LANGHOST_PKG     := github.com/pulumi/pulumi/sdk/v3/python/cmd/pulumi-language-python
+LANGHOST_PKG     := github.com/pulumi/pulumi/sdk/python/cmd/pulumi-language-python/v3
 VERSION          := $(if ${PULUMI_VERSION},${PULUMI_VERSION},$(shell ../../scripts/pulumi-version.sh))
 PYPI_VERSION 	   := $(if ${PYPI_VERSION},${PYPI_VERSION},$(shell ../../scripts/pulumi-version.sh python))
 
@@ -41,6 +41,7 @@ build_package:: ensure
 	. venv/*/activate && python -m pip install -e $(PYENVSRC)
 
 build_plugin::
+	cd cmd/pulumi-language-python && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${VERSION}" ${LANGHOST_PKG}
 
 build:: build_package build_plugin
@@ -53,6 +54,9 @@ lint:: ensure
 	. venv/*/activate && \
 		python -m pylint ./lib/pulumi --rcfile=.pylintrc
 
+	cd cmd/pulumi-language-python && \
+	golangci-lint run -c ../../../../.golangci.yml --timeout 5m
+
 format:: ensure
 	. venv/*/activate && \
 		python -m black $(BLACK_FLAGS)
@@ -63,6 +67,7 @@ install_package:: build_package
 	cp ./dist/pulumi-analyzer-policy-python "$(PULUMI_BIN)"
 
 install_plugin:: build_plugin
+	cd cmd/pulumi-language-python && \
 	GOBIN=$(PULUMI_BIN) go install \
 		  -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${VERSION}" ${LANGHOST_PKG}
 
@@ -80,6 +85,7 @@ test_auto:: $(TEST_ALL_DEPS)
 test_all:: test_fast test_auto test_go
 
 dist::
+	cd cmd/pulumi-language-python && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${VERSION}" ${LANGHOST_PKG}
 	cp ./cmd/pulumi-language-python-exec "$$(go env GOPATH)"/bin/
 	cp ./dist/pulumi-resource-pulumi-python "$$(go env GOPATH)"/bin/
@@ -87,6 +93,7 @@ dist::
 
 brew:: BREW_VERSION := $(shell ../../scripts/get-version HEAD)
 brew::
+	cd cmd/pulumi-language-python && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${BREW_VERSION}" ${LANGHOST_PKG}
 	cp ./cmd/pulumi-language-python-exec "$$(go env GOPATH)"/bin/
 	cp ./dist/pulumi-resource-pulumi-python "$$(go env GOPATH)"/bin/

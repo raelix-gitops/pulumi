@@ -33,6 +33,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/constant"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
@@ -660,4 +662,14 @@ func (host *goLanguageHost) GetProgramDependencies(
 	return &pulumirpc.GetProgramDependenciesResponse{
 		Dependencies: result,
 	}, nil
+}
+
+func (host *goLanguageHost) GenerateProject(
+	ctx context.Context, req *pulumirpc.GenerateProjectRequest) (*pulumirpc.GenerateProjectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateProject not implemented")
+}
+
+func (host *goLanguageHost) GeneratePackage(
+	ctx context.Context, req *pulumirpc.GeneratePackageRequest) (*pulumirpc.GeneratePackageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GeneratePackage not implemented")
 }

@@ -365,3 +365,42 @@ func (h *langhost) GetProgramDependencies(info ProgInfo, transitiveDependencies 
 	logging.V(7).Infof("%s success: #versions=%d", prefix, len(results))
 	return results, nil
 }
+
+func (h *langhost) GenerateProject(
+	directory string, loaderAddress string,
+	project string, source map[string]string, sourceOnly bool) error {
+	logging.V(7).Infof("langhost[%v].GenerateProject() executing", h.runtime)
+	_, err := h.client.GenerateProject(h.ctx.Request(), &pulumirpc.GenerateProjectRequest{
+		Directory:  directory,
+		Project:    project,
+		Source:     source,
+		SourceOnly: sourceOnly,
+	})
+	if err != nil {
+		rpcError := rpcerror.Convert(err)
+		logging.V(7).Infof("langhost[%v].GenerateProject() failed: err=%v", h.runtime, rpcError)
+		return rpcError
+	}
+
+	logging.V(7).Infof("langhost[%v].GenerateProject() success", h.runtime)
+	return nil
+}
+
+func (h *langhost) GeneratePackage(
+	directory string, loaderAddress string,
+	schema string, extraFiles map[string][]byte) error {
+	logging.V(7).Infof("langhost[%v].GeneratePackage() executing", h.runtime)
+	_, err := h.client.GeneratePackage(h.ctx.Request(), &pulumirpc.GeneratePackageRequest{
+		Directory:  directory,
+		Schema:     schema,
+		ExtraFiles: extraFiles,
+	})
+	if err != nil {
+		rpcError := rpcerror.Convert(err)
+		logging.V(7).Infof("langhost[%v].GeneratePackage() failed: err=%v", h.runtime, rpcError)
+		return rpcError
+	}
+
+	logging.V(7).Infof("langhost[%v].GeneratePackage() success", h.runtime)
+	return nil
+}

@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/blang/semver"
@@ -37,6 +39,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/engine"
 	"github.com/pulumi/pulumi/pkg/v3/resource/deploy"
 	"github.com/pulumi/pulumi/pkg/v3/resource/stack"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/encoding"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -474,7 +477,75 @@ func newImportCmd() *cobra.Command {
 			case "yaml":
 				programGenerator = yamlgen.GenerateProgram
 			default:
-				return result.Errorf("cannot generate resource definitions for %v", proj.Runtime.Name())
+				programGenerator = func(program *pcl.Program) (map[string][]byte, hcl.Diagnostics, error) {
+					cwd, err := os.Getwd()
+					if err != nil {
+						return nil, nil, err
+					}
+					sink := cmdutil.Diag()
+
+					ctx, err := plugin.NewContext(sink, sink, nil, nil, cwd, nil, true, nil)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					languagePlugin, err := ctx.Host.LanguageRuntime(proj.Runtime.Name())
+					if err != nil {
+						return nil, nil, err
+					}
+
+					project := workspace.Project{
+						Name: "import",
+					}
+
+					projectBytes, err := encoding.JSON.Marshal(project)
+					if err != nil {
+						return nil, nil, err
+					}
+					projectJSON := string(projectBytes)
+
+					directory, err := os.MkdirTemp("", "pulumi-import")
+					if err != nil {
+						return nil, nil, err
+					}
+					defer os.RemoveAll(directory)
+
+					serverContext, cancel := context.WithCancel(ctx.Request())
+					// Shut the server down when done
+					defer cancel()
+					loaderAddress, err := schema.NewGrpcLoaderServer(serverContext, ctx.Host)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					err = languagePlugin.GenerateProject(directory, loaderAddress, projectJSON, program.Source(), true)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					// We told generateProject to skip all the project files so we can just loop over all the
+					// files that we're emitted and return them.
+					files := make(map[string][]byte)
+					err = filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
+						if err != nil {
+							return err
+						}
+						if d.IsDir() {
+							return nil
+						}
+						bytes, err := os.ReadFile(d.Name())
+						if err != nil {
+							return err
+						}
+						files[path] = bytes
+						return nil
+					})
+					if err != nil {
+						return nil, nil, err
+					}
+
+					return files, nil, nil
+				}
 			}
 
 			// Fetch the current stack.

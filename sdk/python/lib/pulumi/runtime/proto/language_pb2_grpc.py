@@ -48,6 +48,16 @@ class LanguageRuntimeStub(object):
                 request_serializer=pulumi_dot_language__pb2.GetProgramDependenciesRequest.SerializeToString,
                 response_deserializer=pulumi_dot_language__pb2.GetProgramDependenciesResponse.FromString,
                 )
+        self.GenerateProject = channel.unary_unary(
+                '/pulumirpc.LanguageRuntime/GenerateProject',
+                request_serializer=pulumi_dot_language__pb2.GenerateProjectRequest.SerializeToString,
+                response_deserializer=pulumi_dot_language__pb2.GenerateProjectResponse.FromString,
+                )
+        self.GeneratePackage = channel.unary_unary(
+                '/pulumirpc.LanguageRuntime/GeneratePackage',
+                request_serializer=pulumi_dot_language__pb2.GeneratePackageRequest.SerializeToString,
+                response_deserializer=pulumi_dot_language__pb2.GeneratePackageResponse.FromString,
+                )
 
 
 class LanguageRuntimeServicer(object):
@@ -97,6 +107,20 @@ class LanguageRuntimeServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GenerateProject(self, request, context):
+        """GenerateProject generates a given PCL program into a project for the given runtime.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GeneratePackage(self, request, context):
+        """GeneratePackage generates a given pulumi package into a project for the given runtime.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LanguageRuntimeServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -129,6 +153,16 @@ def add_LanguageRuntimeServicer_to_server(servicer, server):
                     servicer.GetProgramDependencies,
                     request_deserializer=pulumi_dot_language__pb2.GetProgramDependenciesRequest.FromString,
                     response_serializer=pulumi_dot_language__pb2.GetProgramDependenciesResponse.SerializeToString,
+            ),
+            'GenerateProject': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateProject,
+                    request_deserializer=pulumi_dot_language__pb2.GenerateProjectRequest.FromString,
+                    response_serializer=pulumi_dot_language__pb2.GenerateProjectResponse.SerializeToString,
+            ),
+            'GeneratePackage': grpc.unary_unary_rpc_method_handler(
+                    servicer.GeneratePackage,
+                    request_deserializer=pulumi_dot_language__pb2.GeneratePackageRequest.FromString,
+                    response_serializer=pulumi_dot_language__pb2.GeneratePackageResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -241,5 +275,39 @@ class LanguageRuntime(object):
         return grpc.experimental.unary_unary(request, target, '/pulumirpc.LanguageRuntime/GetProgramDependencies',
             pulumi_dot_language__pb2.GetProgramDependenciesRequest.SerializeToString,
             pulumi_dot_language__pb2.GetProgramDependenciesResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GenerateProject(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/pulumirpc.LanguageRuntime/GenerateProject',
+            pulumi_dot_language__pb2.GenerateProjectRequest.SerializeToString,
+            pulumi_dot_language__pb2.GenerateProjectResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GeneratePackage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/pulumirpc.LanguageRuntime/GeneratePackage',
+            pulumi_dot_language__pb2.GeneratePackageRequest.SerializeToString,
+            pulumi_dot_language__pb2.GeneratePackageResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

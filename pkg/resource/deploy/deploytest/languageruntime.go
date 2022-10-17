@@ -78,3 +78,11 @@ func (p *languageRuntime) GetProgramDependencies(
 	info plugin.ProgInfo, transitiveDependencies bool) ([]plugin.DependencyInfo, error) {
 	return nil, nil
 }
+
+func (p *languageRuntime) GenerateProject(string, string, string, map[string]string, bool) error {
+	return nil
+}
+
+func (p *languageRuntime) GeneratePackage(string, string, string, map[string][]byte) error {
+	return nil
+}

@@ -324,3 +324,109 @@ class InstallDependenciesResponse(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["stderr", b"stderr", "stdout", b"stdout"]) -> None: ...
 
 global___InstallDependenciesResponse = InstallDependenciesResponse
+
+@typing_extensions.final
+class GenerateProjectRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    @typing_extensions.final
+    class SourceEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        value: builtins.str
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: builtins.str = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    DIRECTORY_FIELD_NUMBER: builtins.int
+    PROJECT_FIELD_NUMBER: builtins.int
+    SOURCE_FIELD_NUMBER: builtins.int
+    SOURCEONLY_FIELD_NUMBER: builtins.int
+    LOADERADDRESS_FIELD_NUMBER: builtins.int
+    directory: builtins.str
+    project: builtins.str
+    @property
+    def source(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    sourceOnly: builtins.bool
+    """Skip generating any project files, just generate the program source."""
+    loaderAddress: builtins.str
+    def __init__(
+        self,
+        *,
+        directory: builtins.str = ...,
+        project: builtins.str = ...,
+        source: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+        sourceOnly: builtins.bool = ...,
+        loaderAddress: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["directory", b"directory", "loaderAddress", b"loaderAddress", "project", b"project", "source", b"source", "sourceOnly", b"sourceOnly"]) -> None: ...
+
+global___GenerateProjectRequest = GenerateProjectRequest
+
+@typing_extensions.final
+class GenerateProjectResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___GenerateProjectResponse = GenerateProjectResponse
+
+@typing_extensions.final
+class GeneratePackageRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    @typing_extensions.final
+    class ExtraFilesEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        value: builtins.bytes
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: builtins.bytes = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    DIRECTORY_FIELD_NUMBER: builtins.int
+    SCHEMA_FIELD_NUMBER: builtins.int
+    EXTRAFILES_FIELD_NUMBER: builtins.int
+    LOADERADDRESS_FIELD_NUMBER: builtins.int
+    directory: builtins.str
+    schema: builtins.str
+    @property
+    def extraFiles(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.bytes]: ...
+    loaderAddress: builtins.str
+    def __init__(
+        self,
+        *,
+        directory: builtins.str = ...,
+        schema: builtins.str = ...,
+        extraFiles: collections.abc.Mapping[builtins.str, builtins.bytes] | None = ...,
+        loaderAddress: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["directory", b"directory", "extraFiles", b"extraFiles", "loaderAddress", b"loaderAddress", "schema", b"schema"]) -> None: ...
+
+global___GeneratePackageRequest = GeneratePackageRequest
+
+@typing_extensions.final
+class GeneratePackageResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___GeneratePackageResponse = GeneratePackageResponse

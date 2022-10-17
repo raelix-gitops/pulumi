@@ -60,6 +60,16 @@ class LanguageRuntimeStub:
         pulumi.language_pb2.GetProgramDependenciesResponse,
     ]
     """GetProgramDependencies returns the set of dependencies required by the program."""
+    GenerateProject: grpc.UnaryUnaryMultiCallable[
+        pulumi.language_pb2.GenerateProjectRequest,
+        pulumi.language_pb2.GenerateProjectResponse,
+    ]
+    """GenerateProject generates a given PCL program into a project for the given runtime."""
+    GeneratePackage: grpc.UnaryUnaryMultiCallable[
+        pulumi.language_pb2.GeneratePackageRequest,
+        pulumi.language_pb2.GeneratePackageResponse,
+    ]
+    """GeneratePackage generates a given pulumi package into a project for the given runtime."""
 
 class LanguageRuntimeServicer(metaclass=abc.ABCMeta):
     """LanguageRuntime is the interface that the planning monitor uses to drive execution of an interpreter responsible
@@ -108,5 +118,19 @@ class LanguageRuntimeServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> pulumi.language_pb2.GetProgramDependenciesResponse:
         """GetProgramDependencies returns the set of dependencies required by the program."""
+    
+    def GenerateProject(
+        self,
+        request: pulumi.language_pb2.GenerateProjectRequest,
+        context: grpc.ServicerContext,
+    ) -> pulumi.language_pb2.GenerateProjectResponse:
+        """GenerateProject generates a given PCL program into a project for the given runtime."""
+    
+    def GeneratePackage(
+        self,
+        request: pulumi.language_pb2.GeneratePackageRequest,
+        context: grpc.ServicerContext,
+    ) -> pulumi.language_pb2.GeneratePackageResponse:
+        """GeneratePackage generates a given pulumi package into a project for the given runtime."""
 
 def add_LanguageRuntimeServicer_to_server(servicer: LanguageRuntimeServicer, server: typing.Union[grpc.Server, grpc.aio.Server]) -> None: ...

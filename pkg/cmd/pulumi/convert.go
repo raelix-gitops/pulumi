@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
@@ -27,7 +28,6 @@ import (
 	javagen "github.com/pulumi/pulumi-java/pkg/codegen/java"
 	tfgen "github.com/pulumi/pulumi-terraform-bridge/v3/pkg/tf2pulumi/convert"
 	yamlgen "github.com/pulumi/pulumi-yaml/pkg/pulumiyaml/codegen"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/dotnet"
 	gogen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 	hclsyntax "github.com/pulumi/pulumi/pkg/v3/codegen/hcl2/syntax"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/nodejs"
@@ -36,6 +36,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/engine"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/encoding"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
@@ -153,10 +154,20 @@ func pclEject(directory string, loader schema.ReferenceLoader) (*workspace.Proje
 }
 
 func runConvert(cwd string, from string, language string, outDir string, generateOnly bool) result.Result {
-	var projectGenerator projectGeneratorFunc
+	host, err := newPluginHost()
+	if err != nil {
+		return result.FromError(fmt.Errorf("could not create plugin host: %w", err))
+	}
+	defer contract.IgnoreClose(host)
+
+	// Translate well known languages to runtimes
 	switch language {
 	case "csharp", "c#":
-		projectGenerator = dotnet.GenerateProject
+		language = "dotnet" // nolint: goconst
+	}
+
+	var projectGenerator projectGeneratorFunc
+	switch language {
 	case "go":
 		projectGenerator = gogen.GenerateProject
 	case "typescript":
@@ -172,10 +183,35 @@ func runConvert(cwd string, from string, language string, outDir string, generat
 			projectGenerator = pclGenerateProject
 			break
 		}
-		fallthrough
-
-	default:
 		return result.Errorf("cannot generate programs for %q language", language)
+	default:
+		projectGenerator = func(directory string, project workspace.Project, program *pcl.Program) error {
+			languagePlugin, err := host.LanguageRuntime(language)
+			if err != nil {
+				return err
+			}
+
+			projectBytes, err := encoding.JSON.Marshal(project)
+			if err != nil {
+				return err
+			}
+			projectJSON := string(projectBytes)
+
+			ctx, cancel := context.WithCancel(context.TODO())
+			// Shut the server down when done
+			defer cancel()
+			loaderAddress, err := schema.NewGrpcLoaderServer(ctx, host)
+			if err != nil {
+				return err
+			}
+
+			err = languagePlugin.GenerateProject(directory, loaderAddress, projectJSON, program.Source(), false)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}
 	}
 
 	if outDir != "." {
@@ -185,11 +221,6 @@ func runConvert(cwd string, from string, language string, outDir string, generat
 		}
 	}
 
-	host, err := newPluginHost()
-	if err != nil {
-		return result.FromError(fmt.Errorf("could not create plugin host: %w", err))
-	}
-	defer contract.IgnoreClose(host)
 	loader := schema.NewPluginLoader(host)
 
 	var proj *workspace.Project

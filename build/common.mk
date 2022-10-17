@@ -134,6 +134,7 @@ install_all:: $(SUB_PROJECTS:%=%_install_all)
 test_all:: $(SUB_PROJECTS:%=%_test_all)
 dist:: $(SUB_PROJECTS:%=%_dist)
 brew:: $(SUB_PROJECTS:%=%_brew)
+lint:: $(SUB_PROJECTS:%=%_lint)
 endif
 
 # `core` is like `default` except it does not build sub projects.

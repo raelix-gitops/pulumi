@@ -16,6 +16,7 @@ package schema
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/edsrzf/mmap-go"
 	"github.com/natefinch/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/blang/semver"
 	"github.com/segmentio/encoding/json"
@@ -31,7 +33,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
+
+	codegenrpc "github.com/pulumi/pulumi/sdk/v3/proto/go/codegen"
 )
 
 type Loader interface {
@@ -323,4 +328,194 @@ func (l *pluginLoader) loadCachedSchemaBytes(pkg string, path string, schemaTime
 	success = true
 
 	return schemaMmap, success
+}
+
+type grpcLoader struct {
+	m sync.RWMutex
+
+	client codegenrpc.LoaderClient
+
+	entries map[string]PackageReference
+}
+
+func NewGrpcLoader(client codegenrpc.LoaderClient) ReferenceLoader {
+	return &grpcLoader{
+		client:  client,
+		entries: map[string]PackageReference{},
+	}
+}
+
+func (l *grpcLoader) getPackage(key string) (PackageReference, bool) {
+	p, ok := l.entries[key]
+	return p, ok
+}
+
+func (l *grpcLoader) setPackage(key string, p PackageReference) PackageReference {
+	if p, ok := l.entries[key]; ok {
+		return p
+	}
+
+	l.entries[key] = p
+	return p
+}
+
+func (l *grpcLoader) LoadPackage(pkg string, version *semver.Version) (*Package, error) {
+	ref, err := l.LoadPackageReference(pkg, version)
+	if err != nil {
+		return nil, err
+	}
+	return ref.Definition()
+}
+
+func (l *grpcLoader) LoadPackageReference(pkg string, version *semver.Version) (PackageReference, error) {
+	if pkg == "pulumi" {
+		return DefaultPulumiPackage.Reference(), nil
+	}
+
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	key := packageIdentity(pkg, version)
+	if p, ok := l.getPackage(key); ok && version == nil {
+		return p, nil
+	}
+
+	schemaBytes, version, err := l.loadSchemaBytes(pkg, version)
+	if err != nil {
+		return nil, err
+	}
+	if schemaIsEmpty(schemaBytes) {
+		return nil, getSchemaNotImplemented{}
+	}
+
+	var spec PartialPackageSpec
+	if _, err := json.Parse(schemaBytes, &spec, json.ZeroCopy); err != nil {
+		return nil, err
+	}
+
+	// Insert a version into the spec if the package does not provide one or if the
+	// existing version is less than the provided one
+	if version != nil {
+		setVersion := true
+		if spec.PackageInfoSpec.Version != "" {
+			vSemver, err := semver.Make(spec.PackageInfoSpec.Version)
+			if err == nil {
+				if vSemver.Compare(*version) == 1 {
+					setVersion = false
+				}
+			}
+		}
+		if setVersion {
+			spec.PackageInfoSpec.Version = version.String()
+		}
+	}
+
+	p, err := importPartialSpec(spec, nil, l)
+	if err != nil {
+		return nil, err
+	}
+	return l.setPackage(key, p), nil
+}
+
+func (l *grpcLoader) loadSchemaBytes(pkg string, version *semver.Version) ([]byte, *semver.Version, error) {
+	strVersion := ""
+	if version != nil {
+		strVersion = version.String()
+	}
+
+	req := &codegenrpc.GetSchemaRequest{
+		Package: pkg,
+		Version: strVersion,
+	}
+	resp, err := l.client.GetSchema(context.TODO(), req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error loading schema from plugin: %w", err)
+	}
+
+	v, err := semver.Parse(resp.Version)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if schemaMmap, ok := mmapedFiles[resp.Schema]; ok {
+		return schemaMmap, &v, nil
+	}
+
+	success := false
+	schemaFile, err := os.OpenFile(resp.Schema, os.O_RDONLY, 0644)
+	defer func() {
+		if !success {
+			schemaFile.Close()
+		}
+	}()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	schemaMmap, err := mmap.Map(schemaFile, mmap.RDONLY, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	success = true
+
+	return schemaMmap, &v, nil
+}
+
+func NewGrpcLoaderServer(ctx context.Context, host plugin.Host) (string, error) {
+	loaderService := &loaderService{
+		loader: NewPluginLoader(host).(*pluginLoader),
+	}
+	done := make(chan bool)
+	go func() {
+		<-ctx.Done()
+		done <- true
+	}()
+	port, _, err := rpcutil.Serve(0, done, []func(*grpc.Server) error{
+		func(srv *grpc.Server) error {
+			codegenrpc.RegisterLoaderServer(srv, loaderService)
+			return nil
+		},
+	}, nil)
+	if err != nil {
+		return "", fmt.Errorf("could not start engine service: %v", err)
+	}
+	return fmt.Sprintf("127.0.0.1:%v", port), nil
+}
+
+type loaderService struct {
+	loader *pluginLoader
+}
+
+func (l *loaderService) GetSchema(ctx context.Context, req *codegenrpc.GetSchemaRequest) (*codegenrpc.GetSchemaResponse, error) {
+	var v *semver.Version
+	if req.Version != "" {
+		version, err := semver.Parse(req.Version)
+		if err != nil {
+			return nil, err
+		}
+		v = &version
+	}
+
+	// TODO: This currently spills the schema to a fresh temp file every time it's called. It should instead
+	// use the plugin info's schema path if possible.
+	schemaBytes, _, err := l.loader.loadSchemaBytes(req.Package, v)
+	if err != nil {
+		return nil, fmt.Errorf("Error loading schema from plugin: %w", err)
+	}
+
+	temp, err := os.CreateTemp("", "pulumi-schema")
+	if err != nil {
+		return nil, fmt.Errorf("Error creating temporary file for schema: %w", err)
+	}
+	path := temp.Name()
+
+	err = atomic.WriteFile(path, bytes.NewReader(schemaBytes))
+	if err != nil {
+		return nil, fmt.Errorf("Error writing schema from plugin to cache: %w", err)
+	}
+
+	return &codegenrpc.GetSchemaResponse{
+		Version: v.String(),
+		Schema:  path,
+	}, nil
 }

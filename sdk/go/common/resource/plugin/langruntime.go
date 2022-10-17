@@ -48,6 +48,11 @@ type LanguageRuntime interface {
 
 	// GetProgramDependencies returns information about the dependencies for the given program.
 	GetProgramDependencies(info ProgInfo, transitiveDependencies bool) ([]DependencyInfo, error)
+
+	GenerateProject(directory string, loaderAddress string,
+		project string, program map[string]string, sourceOnly bool) error
+
+	GeneratePackage(directory string, loaderAddress string, schema string, extraFiles map[string][]byte) error
 }
 
 type DependencyInfo struct {

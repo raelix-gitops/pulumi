@@ -157,7 +157,7 @@ func GenerateProgram(program *pcl.Program) (map[string][]byte, hcl.Diagnostics, 
 	return GenerateProgramWithOptions(program, defaultOptions)
 }
 
-func GenerateProject(directory string, project workspace.Project, program *pcl.Program) error {
+func GenerateProject(directory string, project workspace.Project, program *pcl.Program, sourceOnly bool) error {
 	files, diagnostics, err := GenerateProgram(program)
 	if err != nil {
 		return err
@@ -166,17 +166,18 @@ func GenerateProject(directory string, project workspace.Project, program *pcl.P
 		return diagnostics
 	}
 
-	// Set the runtime to "dotnet" then marshal to Pulumi.yaml
-	project.Runtime = workspace.NewProjectRuntimeInfo("dotnet", nil)
-	projectBytes, err := encoding.YAML.Marshal(project)
-	if err != nil {
-		return err
-	}
-	files["Pulumi.yaml"] = projectBytes
+	if !sourceOnly {
+		// Set the runtime to "dotnet" then marshal to Pulumi.yaml
+		project.Runtime = workspace.NewProjectRuntimeInfo("dotnet", nil)
+		projectBytes, err := encoding.YAML.Marshal(project)
+		if err != nil {
+			return err
+		}
+		files["Pulumi.yaml"] = projectBytes
 
-	// Build a .csproj based on the packages used by program
-	var csproj bytes.Buffer
-	csproj.WriteString(`<Project Sdk="Microsoft.NET.Sdk">
+		// Build a .csproj based on the packages used by program
+		var csproj bytes.Buffer
+		csproj.WriteString(`<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
@@ -188,44 +189,45 @@ func GenerateProject(directory string, project workspace.Project, program *pcl.P
 		<PackageReference Include="Pulumi" Version="3.*" />
 `)
 
-	// For each package add a PackageReference line
-	packages, err := program.PackageSnapshots()
-	if err != nil {
-		return err
-	}
-	for _, p := range packages {
-		packageTemplate := "		<PackageReference Include=\"%s\" Version=\"%s\" />\n"
-
-		if err := p.ImportLanguages(map[string]schema.Language{"csharp": Importer}); err != nil {
+		// For each package add a PackageReference line
+		packages, err := program.PackageSnapshots()
+		if err != nil {
 			return err
 		}
-		if p.Name == pulumiPackage {
-			continue
-		}
+		for _, p := range packages {
+			packageTemplate := "		<PackageReference Include=\"%s\" Version=\"%s\" />\n"
 
-		packageName := fmt.Sprintf("Pulumi.%s", namespaceName(map[string]string{}, p.Name))
-		if langInfo, found := p.Language["csharp"]; found {
-			csharpInfo, ok := langInfo.(CSharpPackageInfo)
-			if ok {
-				namespace := namespaceName(csharpInfo.Namespaces, p.Name)
-				packageName = fmt.Sprintf("%s.%s", csharpInfo.GetRootNamespace(), namespace)
+			if err := p.ImportLanguages(map[string]schema.Language{"csharp": Importer}); err != nil {
+				return err
+			}
+			if p.Name == pulumiPackage {
+				continue
+			}
+
+			packageName := fmt.Sprintf("Pulumi.%s", namespaceName(map[string]string{}, p.Name))
+			if langInfo, found := p.Language["csharp"]; found {
+				csharpInfo, ok := langInfo.(CSharpPackageInfo)
+				if ok {
+					namespace := namespaceName(csharpInfo.Namespaces, p.Name)
+					packageName = fmt.Sprintf("%s.%s", csharpInfo.GetRootNamespace(), namespace)
+				}
+			}
+			if p.Version != nil {
+				csproj.WriteString(fmt.Sprintf(packageTemplate, packageName, p.Version.String()))
+			} else {
+				csproj.WriteString(fmt.Sprintf(packageTemplate, packageName, "*"))
 			}
 		}
-		if p.Version != nil {
-			csproj.WriteString(fmt.Sprintf(packageTemplate, packageName, p.Version.String()))
-		} else {
-			csproj.WriteString(fmt.Sprintf(packageTemplate, packageName, "*"))
-		}
-	}
 
-	csproj.WriteString(`	</ItemGroup>
+		csproj.WriteString(`	</ItemGroup>
 
 </Project>`)
 
-	files[project.Name.String()+".csproj"] = csproj.Bytes()
+		files[project.Name.String()+".csproj"] = csproj.Bytes()
 
-	// Add the language specific .gitignore
-	files[".gitignore"] = []byte(dotnetGitIgnore)
+		// Add the language specific .gitignore
+		files[".gitignore"] = []byte(dotnetGitIgnore)
+	}
 
 	for filename, data := range files {
 		outPath := path.Join(directory, filename)

@@ -39,6 +39,12 @@ service LanguageRuntime {
 
     // GetProgramDependencies returns the set of dependencies required by the program.
     rpc GetProgramDependencies(GetProgramDependenciesRequest) returns (GetProgramDependenciesResponse) {}
+
+    // GenerateProject generates a given PCL program into a project for the given runtime.
+    rpc GenerateProject(GenerateProjectRequest) returns (GenerateProjectResponse) {}
+
+    // GeneratePackage generates a given pulumi package into a project for the given runtime.
+    rpc GeneratePackage(GeneratePackageRequest) returns (GeneratePackageResponse) {}
 }
 
 // AboutResponse returns runtime information about the language.
@@ -109,4 +115,27 @@ message InstallDependenciesRequest {
 message InstallDependenciesResponse {
     bytes stdout = 1; // a line of stdout text.
     bytes stderr = 2; // a line of stderr text.
+}
+
+message GenerateProjectRequest {
+    string directory = 1;
+    string project = 2;
+    map<string, string> source = 3;
+
+    // Skip generating any project files, just generate the program source.
+    bool sourceOnly = 4;
+    string loaderAddress = 5;
+}
+
+message GenerateProjectResponse {
+}
+
+message GeneratePackageRequest {
+    string directory = 1;
+    string schema = 2;
+    map<string, bytes> extraFiles = 3;
+    string loaderAddress = 4;
+}
+
+message GeneratePackageResponse {
 }

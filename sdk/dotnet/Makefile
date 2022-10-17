@@ -1,5 +1,5 @@
 PROJECT_NAME    := Pulumi .NET Core SDK
-LANGHOST_PKG    := github.com/pulumi/pulumi/sdk/v3/dotnet/cmd/pulumi-language-dotnet
+LANGHOST_PKG    := github.com/pulumi/pulumi/sdk/dotnet/cmd/pulumi-language-dotnet/v3
 
 PROJECT_PKGS    := $(shell go list ./cmd...)
 
@@ -44,9 +44,11 @@ build::
 	#     -alpha: Alpha release, typically used for work-in-progress and experimentation
 	dotnet clean
 	dotnet build dotnet.sln -p:Version=${DOTNET_VERSION}
+	cd cmd/pulumi-language-dotnet && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${DOTNET_VERSION}" ${LANGHOST_PKG}
 
 install_plugin::
+	cd cmd/pulumi-language-dotnet && \
 	GOBIN=$(PULUMI_BIN) go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${DOTNET_VERSION}" ${LANGHOST_PKG}
 
 install:: build install_plugin
@@ -71,11 +73,17 @@ test_go:: $(TEST_ALL_DEPS)
 
 test_all:: dotnet_test test_auto test_go
 
+lint::
+	cd cmd/pulumi-language-dotnet && \
+	golangci-lint run -c ../../../../.golangci.yml --timeout 5m
+
 dist::
+	cd cmd/pulumi-language-dotnet && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${DOTNET_VERSION}" ${LANGHOST_PKG}
 
 brew:: BREW_VERSION := $(shell ../../scripts/get-version HEAD)
 brew::
+	cd cmd/pulumi-language-dotnet && \
 	go install -ldflags "-X github.com/pulumi/pulumi/sdk/v3/go/common/version.Version=${BREW_VERSION}" ${LANGHOST_PKG}
 
 publish::

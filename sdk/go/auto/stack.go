@@ -1184,6 +1184,16 @@ func (s *languageRuntimeServer) GetProgramDependencies(
 	return nil, status.Errorf(codes.Unimplemented, "method GetProgramDependencies not implemented")
 }
 
+func (s *languageRuntimeServer) GenerateProject(
+	_ context.Context, _ *pulumirpc.GenerateProjectRequest) (*pulumirpc.GenerateProjectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateProject not implemented")
+}
+
+func (s *languageRuntimeServer) GeneratePackage(
+	_ context.Context, _ *pulumirpc.GeneratePackageRequest) (*pulumirpc.GeneratePackageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GeneratePackage not implemented")
+}
+
 type fileWatcher struct {
 	Filename  string
 	tail      *tail.Tail
