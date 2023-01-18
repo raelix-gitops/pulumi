@@ -26,7 +26,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
-// Node represents a single definition in a program or component. Nodes may be config, locals, resources, or outputs.
+// Node represents a single definition in a program or component. Nodes may be config, locals, resources, components, or outputs.
 type Node interface {
 	model.Definition
 

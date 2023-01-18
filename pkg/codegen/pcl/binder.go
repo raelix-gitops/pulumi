@@ -38,6 +38,7 @@ type bindOptions struct {
 	skipResourceTypecheck  bool
 	loader                 schema.Loader
 	packageCache           *PackageCache
+	componentLoader        func(string) (*Program, hcl.Diagnostics, error)
 }
 
 func (opts bindOptions) modelOptions() []model.BindOption {
@@ -86,6 +87,10 @@ func Cache(cache *PackageCache) BindOption {
 	return func(options *bindOptions) {
 		options.packageCache = cache
 	}
+}
+
+func SupportComponents(options *bindOptions, loader func(path string) (*Program, hcl.Diagnostics, error)) {
+	options.componentLoader = loader
 }
 
 // BindProgram performs semantic analysis on the given set of HCL2 files that represent a single program. The given
@@ -257,6 +262,19 @@ func (b *binder) declareNodes(file *syntax.File) (hcl.Diagnostics, error) {
 				if err := b.loadReferencedPackageSchemas(v); err != nil {
 					return nil, err
 				}
+			case "component":
+				if len(item.Labels) != 1 {
+					diagnostics = append(diagnostics, labelsErrorf(item, "components must have exactly one label"))
+					continue
+				}
+				name = item.Labels[0]
+
+				v := &Component{
+					name:   name,
+					syntax: item,
+				}
+				diags := b.declareNode(name, v)
+				diagnostics = append(diagnostics, diags...)
 			}
 		}
 	}

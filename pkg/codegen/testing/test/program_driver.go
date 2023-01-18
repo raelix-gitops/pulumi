@@ -231,6 +231,10 @@ var PulumiPulumiProgramTests = []ProgramTest{
 		// directionally correct.
 		SkipCompile: allProgLanguages,
 	},
+	{
+		Directory:   "components",
+		Description: "Components",
+	},
 }
 
 var PulumiPulumiYAMLProgramTests = []ProgramTest{
