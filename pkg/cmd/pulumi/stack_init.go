@@ -17,6 +17,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -29,11 +30,25 @@ const (
 		"(possible choices: default, passphrase, awskms, azurekeyvault, gcpkms, hashivault)"
 )
 
+// These are the options that can be supplied during stack creation.
+type stackCreateOptions struct {
+	// Service Only: this is the list of teams what will be given permissions
+	// on the stack after creation.
+	teams []string
+}
+
+// GetTeams returns a list of teams intened to be assigned to this stack after creation.
+func (opts *stackCreateOptions) Teams() []string {
+	return opts.teams, nil
+}
+
 func newStackInitCmd() *cobra.Command {
 	var secretsProvider string
 	var stackName string
 	var stackToCopy string
 	var noSelect bool
+	// teams is the list of teams who should have access to this stack, once created.
+	var teams []string
 
 	cmd := &cobra.Command{
 		Use:   "init [<org-name>/]<stack-name>",
@@ -118,7 +133,15 @@ func newStackInitCmd() *cobra.Command {
 				return err
 			}
 
-			var createOpts interface{} // Backend-specific config options, none currently.
+			// If the user has provided the --teams flag, but their
+			// backend doesn't support it, error quickly.
+			if !b.SupportsTeams() && len(teams) > 0 {
+				return errTeamsIllegallyProvided
+			}
+
+			// Backend-specific config options. Currently only applicable to the HTTP backend.
+			var createOpts = validateCreateStackOpts(teams)
+
 			newStack, err := createStack(ctx, b, stackRef, createOpts, !noSelect, secretsProvider)
 			if err != nil {
 				return err
@@ -161,5 +184,31 @@ func newStackInitCmd() *cobra.Command {
 		&stackToCopy, "copy-config-from", "", "The name of the stack to copy existing config from")
 	cmd.PersistentFlags().BoolVar(
 		&noSelect, "no-select", false, "Do not select the stack")
+	cmd.PersistentFlags().StringArrayVar(&teams, "teams", nil, "A list of team "+
+		"names that should have permission to read and update this stack,"+
+		" once created")
 	return cmd
 }
+
+// This function constructs a createStackOptions object if
+// valid, otherwise returning nil. Most backends expect nil
+// options, and error if options are non-nil.
+func validateCreateStackOpts(teams []string) *stackCreateOptions {
+	var opts *stackCreateOptions
+	// Remove any strings from the list that are empty or just whitespace.
+	var validatedTeams = teams[:0] // reuse storage.
+	for _, team := range teams {
+		var teamStr = strings.TrimSpace(team)
+		if len(teamStr) > 0 {
+			validatedTeams = append(validatedTeams, teamStr)
+		}
+	}
+	if len(validatedTeams) > 0 {
+		opts = &stackCreateOptions{
+			teams: validatedTeams,
+		}
+	}
+	return opts
+}
+
+var errTeamsIllegallyProvided = errors.New("the --teams flag is only supported by the Pulumi Service backend")

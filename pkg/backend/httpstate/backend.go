@@ -568,6 +568,10 @@ func (b *cloudBackend) SupportsOrganizations() bool {
 	return true
 }
 
+func (b *cloudBackend) SupportsTeams() bool {
+	return true
+}
+
 // qualifiedStackReference describes a qualified stack on the Pulumi Service. The Owner or Project
 // may be "" if unspecified, e.g. "pulumi/production" specifies the Owner and Name, but not the
 // Project. We infer the missing data and try to make things work as best we can in ParseStackReference.
@@ -819,8 +823,33 @@ func currentProjectContradictsWorkspace(stack client.StackIdentifier) bool {
 	return proj.Name.String() != stack.Project
 }
 
+type httpCreateStackOptions interface {
+	Teams() []string
+}
+
+// mustExtractTeams inspects the Options provided, expecting
+// they be HTTPCreateStackOptions. If so, the teams field is extracted.
+// Otherwise, this function will panic because an invalid option type
+// was provided, which is an internal bug.
+func mustExtractTeams(opts interface{}) []string {
+	var teams []string
+	if opts != nil {
+		if httpOpts, ok := opts.(httpCreateStackOptions); ok {
+			teams = httpOpts.Teams()
+		} else {
+			// TODO(Robbie): Remove this panic and replace it with the library equivalent.
+			panic(
+				"If non-nil Stack Create options are passed to HTTPBackend.CreateStack," +
+					"you must provide an instance of *HTTPCreateStackOptions",
+			)
+		}
+	}
+
+	return teams
+}
+
 func (b *cloudBackend) CreateStack(
-	ctx context.Context, stackRef backend.StackReference, _ interface{} /* No custom options for httpstate backend. */) (
+	ctx context.Context, stackRef backend.StackReference, opts backend.CreateStackOptions) (
 	backend.Stack, error) {
 	stackID, err := b.getCloudStackIdentifier(stackRef)
 	if err != nil {
@@ -836,7 +865,9 @@ func (b *cloudBackend) CreateStack(
 		return nil, fmt.Errorf("error determining initial tags: %w", err)
 	}
 
-	apistack, err := b.client.CreateStack(ctx, stackID, tags)
+	var teams = mustExtractTeams(opts)
+	apistack, err := b.client.CreateStack(ctx, stackID, tags, teams)
+
 	if err != nil {
 		// Wire through well-known error types.
 		if errResp, ok := err.(*apitype.ErrorResponse); ok && errResp.Code == http.StatusConflict {

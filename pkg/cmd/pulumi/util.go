@@ -211,7 +211,7 @@ func createSecretsManager(
 
 // createStack creates a stack with the given name, and optionally selects it as the current.
 func createStack(ctx context.Context,
-	b backend.Backend, stackRef backend.StackReference, opts interface{}, setCurrent bool,
+	b backend.Backend, stackRef backend.StackReference, opts backend.CreateStackOptions, setCurrent bool,
 	secretsProvider string) (backend.Stack, error) {
 
 	stack, err := b.CreateStack(ctx, stackRef, opts)

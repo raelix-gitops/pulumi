@@ -272,6 +272,10 @@ func (b *localBackend) ListPolicyPacks(ctx context.Context, orgName string, _ ba
 	return apitype.ListPolicyPacksResponse{}, nil, fmt.Errorf("File state backend does not support resource policy")
 }
 
+func (b *localBackend) SupportsTeams() bool {
+	return false
+}
+
 func (b *localBackend) SupportsTags() bool {
 	return false
 }
@@ -309,7 +313,7 @@ func (b *localBackend) DoesProjectExist(ctx context.Context, projectName string)
 }
 
 func (b *localBackend) CreateStack(ctx context.Context, stackRef backend.StackReference,
-	opts interface{}) (backend.Stack, error) {
+	opts backend.CreateStackOptions) (backend.Stack, error) {
 
 	err := b.Lock(ctx, stackRef)
 	if err != nil {
