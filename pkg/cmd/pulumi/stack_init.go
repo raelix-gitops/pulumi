@@ -21,6 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pulumi/pulumi/pkg/v3/backend"
 	"github.com/pulumi/pulumi/pkg/v3/backend/display"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
 )
@@ -29,18 +30,6 @@ const (
 	possibleSecretsProviderChoices = "The type of the provider that should be used to encrypt and decrypt secrets\n" +
 		"(possible choices: default, passphrase, awskms, azurekeyvault, gcpkms, hashivault)"
 )
-
-// These are the options that can be supplied during stack creation.
-type stackCreateOptions struct {
-	// Service Only: this is the list of teams what will be given permissions
-	// on the stack after creation.
-	teams []string
-}
-
-// GetTeams returns a list of teams intened to be assigned to this stack after creation.
-func (opts *stackCreateOptions) Teams() []string {
-	return opts.teams, nil
-}
 
 func newStackInitCmd() *cobra.Command {
 	var secretsProvider string
@@ -133,14 +122,11 @@ func newStackInitCmd() *cobra.Command {
 				return err
 			}
 
-			// If the user has provided the --teams flag, but their
-			// backend doesn't support it, error quickly.
-			if !b.SupportsTeams() && len(teams) > 0 {
-				return errTeamsIllegallyProvided
-			}
-
 			// Backend-specific config options. Currently only applicable to the HTTP backend.
-			var createOpts = validateCreateStackOpts(teams)
+			createOpts, err := validateCreateStackOpts(stackName, b, teams)
+			if err != nil {
+				return err
+			}
 
 			newStack, err := createStack(ctx, b, stackRef, createOpts, !noSelect, secretsProvider)
 			if err != nil {
@@ -193,9 +179,14 @@ func newStackInitCmd() *cobra.Command {
 // This function constructs a createStackOptions object if
 // valid, otherwise returning nil. Most backends expect nil
 // options, and error if options are non-nil.
-func validateCreateStackOpts(teams []string) *stackCreateOptions {
-	var opts *stackCreateOptions
-	// Remove any strings from the list that are empty or just whitespace.
+func validateCreateStackOpts(stackName string, b backend.Backend, teams []string) (backend.CreateStackOptions, error) {
+	// • If the user provided teams but the backend doesn't support them,
+	//   return an error.
+	if len(teams) > 0 && !b.SupportsTeams() {
+		return nil, newTeamsUnsupportedError(stackName, b.Name())
+	}
+	// • Otherwise, validate the teams and pass them along.
+	//   Remove any strings from the list that are empty or just whitespace.
 	var validatedTeams = teams[:0] // reuse storage.
 	for _, team := range teams {
 		var teamStr = strings.TrimSpace(team)
@@ -203,12 +194,32 @@ func validateCreateStackOpts(teams []string) *stackCreateOptions {
 			validatedTeams = append(validatedTeams, teamStr)
 		}
 	}
-	if len(validatedTeams) > 0 {
-		opts = &stackCreateOptions{
-			teams: validatedTeams,
-		}
-	}
-	return opts
+
+	// • We can return stack options that contain the provided teams.
+	//   since this will be zerod for non-Service backends.
+	return backend.NewStandardCreateStackOpts(validatedTeams), nil
 }
 
-var errTeamsIllegallyProvided = errors.New("the --teams flag is only supported by the Pulumi Service backend")
+// TeamsUnsupportedError is the error returned when the --teams
+// flag is provided on a backend that doesn't support teams.
+type teamsUnsupportedError struct {
+	stackName   string
+	backendType string
+}
+
+// NewTeamsUnsupportedError constructs an error for when users provide the --teams flag
+// for non-Service backends, or when options with teams are incorrectly provided to
+// a backend during stack creation.
+func newTeamsUnsupportedError(stackName, backendType string) *teamsUnsupportedError {
+	return &teamsUnsupportedError{
+		stackName:   stackName,
+		backendType: backendType,
+	}
+}
+
+func (err teamsUnsupportedError) Error() string {
+	return fmt.Sprintf("The stack %s uses the %s backend, which does not supports teams", err.stackName, err.backendType)
+}
+
+// Assert that this type fulfills the Error interface.
+var _ error = &teamsUnsupportedError{}

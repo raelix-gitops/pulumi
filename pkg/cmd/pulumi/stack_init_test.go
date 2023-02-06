@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/pulumi/pulumi/pkg/v3/backend"
 	"github.com/stretchr/testify/assert"
 )
 
+// This test demonstrates that validateCreateStack will filter
+// out teams consisting exclusively of whitespace.
 func TestValidateCreateStackOpts(t *testing.T) {
 	t.Parallel()
 
 	var cases = []struct {
 		name                 string
 		rawTeams, validTeams []string
-		hasValidTeams        bool
 	}{
 		{
 			name: "Input Is Empty",
@@ -42,16 +44,21 @@ func TestValidateCreateStackOpts(t *testing.T) {
 		tc := tc
 		t.Run(fmt.Sprintf("When %s", tc.name), func(t *testing.T) {
 			t.Parallel()
+			var stackName = "dev"
+			var mockBackend = &backend.MockBackend{}
 			// If the test case provides at least one valid team,
 			// then the options should be non-nil.
 			var expectTeams = len(tc.validTeams) > 0
-			var observed = validateCreateStackOpts(tc.rawTeams)
+			observed, err := validateCreateStackOpts(stackName, mockBackend, tc.rawTeams)
+			assert.Nil(t, err)
 			if !expectTeams {
-				assert.Nil(t, observed)
+				assert.Len(t, observed, 0)
 				return
 			}
 			assert.NotNil(t, observed)
-			assert.ElementsMatch(t, observed.teams, tc.validTeams)
+			teams, err := observed.Teams()
+			assert.Nil(t, err)
+			assert.ElementsMatch(t, teams, tc.validTeams)
 		})
 	}
 }

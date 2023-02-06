@@ -160,7 +160,9 @@ func (be *MockBackend) GetStack(ctx context.Context, stackRef StackReference) (S
 	panic("not implemented")
 }
 
-func (be *MockBackend) CreateStack(ctx context.Context, stackRef StackReference, opts CreateStackOptions) (Stack, error) {
+func (be *MockBackend) CreateStack(
+	ctx context.Context, stackRef StackReference, opts CreateStackOptions,
+) (Stack, error) {
 	if be.CreateStackF != nil {
 		return be.CreateStackF(ctx, stackRef, opts)
 	}

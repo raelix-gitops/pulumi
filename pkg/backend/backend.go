@@ -43,17 +43,6 @@ var (
 	ErrNoPreviousDeployment = errors.New("no previous deployment")
 )
 
-// TeamsUnsupportedError is the error returned when the --teams
-// flag is provided on a backend that doesn't support teams.
-type TeamsUnsupportedError struct {
-	StackName   string
-	BackendType string
-}
-
-func (TeamsUnsupportedErrors) Teams() ([]string, error) {
-	fmt.Errorf("Stack %s uses a %s backend, but teams are only supported ")
-}
-
 // StackAlreadyExistsError is returned from CreateStack when the stack already exists in the backend.
 type StackAlreadyExistsError struct {
 	StackName string
@@ -374,4 +363,33 @@ func (c *backendClient) GetStackResourceOutputs(
 // options only apply to the Service.
 type CreateStackOptions interface {
 	Teams() ([]string, error)
+}
+
+// These are the options that can be supplied during stack creation.
+// For httpstate backends, teams can be non-empty. Other backends should
+// provide a nil or empty set of teams since teams are only supported by
+// http backends.
+type StandardCreateStackOpts struct {
+	// Service Only: this is the list of teams what will be given permissions
+	// on the stack after creation.
+	teams []string
+}
+
+// Assert that this type fulfills the backend.StackCreateOptions interface.
+var _ CreateStackOptions = &StandardCreateStackOpts{}
+
+// This is the constructor for CreateStackOptions
+// Backends that don't support teams should pass a nil or empty slice.
+func NewStandardCreateStackOpts(teams []string) *StandardCreateStackOpts {
+	return &StandardCreateStackOpts{
+		teams: teams,
+	}
+}
+
+// Teams returns a list of teams intened to be assigned to this stack after creation.
+func (opts *StandardCreateStackOpts) Teams() ([]string, error) {
+	if opts == nil {
+		return []string{}, nil
+	}
+	return opts.teams, nil
 }

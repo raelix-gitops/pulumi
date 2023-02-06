@@ -570,9 +570,10 @@ func TestCanRenameStack(t *testing.T) {
 func TestLocalBackendRejectsStackInitOptions(t *testing.T) {
 	t.Parallel()
 
-	// • Create an empty struct to simulate a non-nil value.
-	type stackInitOptions struct{}
-	var opts = &stackInitOptions{}
+	// Here, we provide options that illegally specify a team on a
+	// backend that does not support teams. We expect this to create
+	// an error later when we call CreateStack.
+	var illegalOptions = backend.NewStandardCreateStackOpts([]string{"red-team"})
 
 	// • Create a mock local backend
 	var tmpDir = t.TempDir()
@@ -586,7 +587,7 @@ func TestLocalBackendRejectsStackInitOptions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Panics(t, func() {
 		// • Expect an error.
-		_, err := local.CreateStack(ctx, fakeStackRef, opts)
+		_, err := local.CreateStack(ctx, fakeStackRef, illegalOptions)
 		assert.NoError(t, err)
 	})
 }

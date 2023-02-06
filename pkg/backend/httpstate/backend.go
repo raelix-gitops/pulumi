@@ -823,31 +823,6 @@ func currentProjectContradictsWorkspace(stack client.StackIdentifier) bool {
 	return proj.Name.String() != stack.Project
 }
 
-type httpCreateStackOptions interface {
-	Teams() []string
-}
-
-// mustExtractTeams inspects the Options provided, expecting
-// they be HTTPCreateStackOptions. If so, the teams field is extracted.
-// Otherwise, this function will panic because an invalid option type
-// was provided, which is an internal bug.
-func mustExtractTeams(opts interface{}) []string {
-	var teams []string
-	if opts != nil {
-		if httpOpts, ok := opts.(httpCreateStackOptions); ok {
-			teams = httpOpts.Teams()
-		} else {
-			// TODO(Robbie): Remove this panic and replace it with the library equivalent.
-			panic(
-				"If non-nil Stack Create options are passed to HTTPBackend.CreateStack," +
-					"you must provide an instance of *HTTPCreateStackOptions",
-			)
-		}
-	}
-
-	return teams
-}
-
 func (b *cloudBackend) CreateStack(
 	ctx context.Context, stackRef backend.StackReference, opts backend.CreateStackOptions) (
 	backend.Stack, error) {
@@ -865,7 +840,11 @@ func (b *cloudBackend) CreateStack(
 		return nil, fmt.Errorf("error determining initial tags: %w", err)
 	}
 
-	var teams = mustExtractTeams(opts)
+	teams, err := opts.Teams()
+	if err != nil {
+		return nil, err
+	}
+
 	apistack, err := b.client.CreateStack(ctx, stackID, tags, teams)
 
 	if err != nil {
