@@ -72,6 +72,8 @@ func TestV1ToV2(t *testing.T) {
 }
 
 func TestV2ToV3(t *testing.T) {
+	t.Parallel()
+
 	v2 := apitype.ResourceV2{
 		URN:    resource.URN("foo"),
 		Custom: true,
