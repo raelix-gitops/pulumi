@@ -18,6 +18,7 @@ import (
 	cryptorand "crypto/rand"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pulumi/pulumi/pkg/v3/resource/deploy/providers"
 	"github.com/pulumi/pulumi/pkg/v3/resource/graph"
@@ -212,6 +213,8 @@ func (sg *stepGenerator) GenerateReadSteps(event ReadResourceEvent) ([]Step, res
 		"",    /* importID */
 		false, /* retainOnDelete */
 		"",    /* deletedWith */
+		nil,   /* created */
+		nil,   /* modified */
 	)
 	old, hasOld := sg.deployment.Olds()[urn]
 
@@ -471,12 +474,15 @@ func (sg *stepGenerator) generateSteps(event RegisterResourceEvent) ([]Step, res
 	var old *resource.State
 	var hasOld bool
 	var alias []resource.Alias
+	var created, modified *time.Time
 	aliases[urn] = struct{}{}
 	for urnOrAlias := range aliases {
 		old, hasOld = sg.deployment.Olds()[urnOrAlias]
 		if hasOld {
 			oldInputs = old.Inputs
 			oldOutputs = old.Outputs
+			created = old.Created
+			modified = old.Modified
 			if urnOrAlias != urn {
 				if _, alreadySeen := sg.urns[urnOrAlias]; alreadySeen {
 					// This resource is claiming to X but we've already seen that urn created
@@ -520,11 +526,17 @@ func (sg *stepGenerator) generateSteps(event RegisterResourceEvent) ([]Step, res
 		aliasUrns[i] = a.URN
 	}
 
+	now := time.Now()
+	if created == nil {
+		created = &now
+		modified = &now
+	}
+
 	// Produce a new state object that we'll build up as operations are performed.  Ultimately, this is what will
 	// get serialized into the checkpoint file.
 	new := resource.NewState(goal.Type, urn, goal.Custom, false, "", inputs, nil, goal.Parent, goal.Protect, false,
 		goal.Dependencies, goal.InitErrors, goal.Provider, goal.PropertyDependencies, false,
-		goal.AdditionalSecretOutputs, aliasUrns, &goal.CustomTimeouts, "", goal.RetainOnDelete, goal.DeletedWith)
+		goal.AdditionalSecretOutputs, aliasUrns, &goal.CustomTimeouts, "", goal.RetainOnDelete, goal.DeletedWith, created, modified)
 
 	// Mark the URN/resource as having been seen. So we can run analyzers on all resources seen, as well as
 	// lookup providers for calculating replacement of resources that use the provider.

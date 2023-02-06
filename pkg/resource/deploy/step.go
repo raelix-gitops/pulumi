@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pulumi/pulumi/pkg/v3/resource/deploy/providers"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
@@ -258,7 +259,12 @@ func (s *CreateStep) Apply(preview bool) (resource.Status, StepCompleteFunc, err
 		s.old.Delete = true
 	}
 
-	complete := func() { s.reg.Done(&RegisterResult{State: s.new}) }
+	complete := func() {
+		now := time.Now()
+		s.new.Created = &now
+		s.new.Modified = &now
+		s.reg.Done(&RegisterResult{State: s.new})
+	}
 	if resourceError == nil {
 		return resourceStatus, complete, nil
 	}
@@ -485,8 +491,10 @@ func (s *UpdateStep) Diffs() []resource.PropertyKey                { return s.di
 func (s *UpdateStep) DetailedDiff() map[string]plugin.PropertyDiff { return s.detailedDiff }
 
 func (s *UpdateStep) Apply(preview bool) (resource.Status, StepCompleteFunc, error) {
-	// Always propagate the ID, even in previews and refreshes.
+	// Always propagate the ID and timestamps even in previews and refreshes.
 	s.new.ID = s.old.ID
+	s.new.Created = s.old.Created
+	s.new.Modified = s.old.Modified
 
 	var resourceError error
 	resourceStatus := resource.StatusOK
@@ -518,7 +526,11 @@ func (s *UpdateStep) Apply(preview bool) (resource.Status, StepCompleteFunc, err
 	}
 
 	// Finally, mark this operation as complete.
-	complete := func() { s.reg.Done(&RegisterResult{State: s.new}) }
+	complete := func() {
+		now := time.Now()
+		s.new.Modified = &now
+		s.reg.Done(&RegisterResult{State: s.new})
+	}
 	if resourceError == nil {
 		return resourceStatus, complete, nil
 	}
@@ -803,6 +815,12 @@ func (s *RefreshStep) Apply(preview bool) (resource.Status, StepCompleteFunc, er
 		inputs = refreshed.Inputs
 	}
 
+	now := time.Now()
+	created := s.old.Created
+	if created == nil {
+		created = &now
+	}
+
 	if outputs != nil {
 		// There is a chance that the ID has changed. We want to allow this change to happen
 		// it will have changed already in the outputs, but we need to persist this change
@@ -815,7 +833,7 @@ func (s *RefreshStep) Apply(preview bool) (resource.Status, StepCompleteFunc, er
 		s.new = resource.NewState(s.old.Type, s.old.URN, s.old.Custom, s.old.Delete, resourceID, inputs, outputs,
 			s.old.Parent, s.old.Protect, s.old.External, s.old.Dependencies, initErrors, s.old.Provider,
 			s.old.PropertyDependencies, s.old.PendingReplacement, s.old.AdditionalSecretOutputs, s.old.Aliases,
-			&s.old.CustomTimeouts, s.old.ImportID, s.old.RetainOnDelete, s.old.DeletedWith)
+			&s.old.CustomTimeouts, s.old.ImportID, s.old.RetainOnDelete, s.old.DeletedWith, created, &now)
 	} else {
 		s.new = nil
 	}
@@ -959,13 +977,19 @@ func (s *ImportStep) Apply(preview bool) (resource.Status, StepCompleteFunc, err
 	}
 	s.new.Outputs = read.Outputs
 
+	now := time.Now()
+	created := s.old.Created
+	if created == nil {
+		created = &now
+	}
+
 	// Magic up an old state so the frontend can display a proper diff. This state is the output of the just-executed
 	// `Read` combined with the resource identity and metadata from the desired state. This ensures that the only
 	// differences between the old and new states are between the inputs and outputs.
 	s.old = resource.NewState(s.new.Type, s.new.URN, s.new.Custom, false, s.new.ID, read.Inputs, read.Outputs,
 		s.new.Parent, s.new.Protect, false, s.new.Dependencies, s.new.InitErrors, s.new.Provider,
 		s.new.PropertyDependencies, false, nil, nil, &s.new.CustomTimeouts, s.new.ImportID, s.new.RetainOnDelete,
-		s.new.DeletedWith)
+		s.new.DeletedWith, created, &now)
 
 	// If this step came from an import deployment, we need to fetch any required inputs from the state.
 	if s.planned {

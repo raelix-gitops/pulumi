@@ -329,6 +329,10 @@ type ResourceV3 struct {
 	// If set, the providers Delete method will not be called for this resource
 	// if specified resource is being deleted as well.
 	DeletedWith resource.URN `json:"deletedWith,omitempty" yaml:"deletedWith,omitempty"`
+	// Created tracks when this resource was created. Checkpoints prior to early 2023 do not include this.
+	Created *time.Time `json:"created,omitempty" yaml:"created,omitempty"`
+	// Modified tracks the last time this resource's state was changed for any reason except deletions.
+	Modified *time.Time `json:"modified,omitempty" yaml:"modified,omitempty"`
 }
 
 // ManifestV1 captures meta-information about this checkpoint file, such as versions of binaries, etc.
