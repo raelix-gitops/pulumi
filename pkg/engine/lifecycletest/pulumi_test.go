@@ -4655,6 +4655,8 @@ func TestTimestampTracking(t *testing.T) {
 	for _, resource := range snap.Resources {
 		creationTimes = append(creationTimes, resource.Created)
 
+		tz, _ := resource.Created.Zone()
+		assert.Equal(t, "UTC", tz)
 		assert.NotNil(t, resource.Created, resource.URN)
 		assert.NotNil(t, resource.Updated, resource.URN)
 		assert.Equal(t, resource.Created, resource.Updated, resource.URN)
@@ -4683,6 +4685,8 @@ func TestTimestampTracking(t *testing.T) {
 
 		switch resource.Type {
 		case "pkgA:m:typA":
+			tz, _ := resource.Updated.Zone()
+			assert.Equal(t, "UTC", tz)
 			assert.Greater(t, *resource.Updated, *resource.Created, resource.URN)
 			assert.NotContains(t, creationTimes, resource.Updated, resource.URN)
 		case "pulumi:providers:pkgA", "pulumi:pulumi:Stack":

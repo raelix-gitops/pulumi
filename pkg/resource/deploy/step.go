@@ -260,7 +260,7 @@ func (s *CreateStep) Apply(preview bool) (resource.Status, StepCompleteFunc, err
 	}
 
 	complete := func() {
-		now := time.Now()
+		now := time.Now().UTC()
 		created, updated := now, now // by-value copy of the time.Time struct.
 		s.new.Created, s.new.Updated = &created, &updated
 		s.reg.Done(&RegisterResult{State: s.new})
@@ -527,7 +527,7 @@ func (s *UpdateStep) Apply(preview bool) (resource.Status, StepCompleteFunc, err
 
 	// Finally, mark this operation as complete.
 	complete := func() {
-		now := time.Now()
+		now := time.Now().UTC()
 		s.new.Updated = &now
 		s.reg.Done(&RegisterResult{State: s.new})
 	}
