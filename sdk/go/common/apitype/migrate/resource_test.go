@@ -119,6 +119,6 @@ func TestV2ToV3(t *testing.T) {
 	}, v3.Dependencies)
 	assert.Equal(t, "provider", v3.Provider)
 	assert.Equal(t, []string{"error"}, v3.InitErrors)
-	assert.NotNil(t, v3.Created)
-	assert.NotNil(t, v3.Modified)
+	assert.Nil(t, v3.Created)
+	assert.Nil(t, v3.Updated)
 }

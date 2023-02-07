@@ -328,7 +328,7 @@ func SerializeResource(res *resource.State, enc config.Encrypter, showSecrets bo
 		RetainOnDelete:          res.RetainOnDelete,
 		DeletedWith:             res.DeletedWith,
 		Created:                 res.Created,
-		Modified:                res.Modified,
+		Updated:                 res.Updated,
 	}
 
 	if res.CustomTimeouts.IsNotEmpty() {
