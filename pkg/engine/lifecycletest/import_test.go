@@ -403,17 +403,36 @@ func TestImportUpdatedID(t *testing.T) {
 	p.Options.Host = deploytest.NewPluginHost(nil, nil, program, loaders...)
 
 	p.Steps = []TestStep{{Op: Refresh, SkipPreview: true}}
-	snap := p.Run(t, nil)
+
+	// Refresh requires at least one resource in order to proceed.
+	stackURN := resource.URN("urn:pulumi:stack::stack::pulumi:pulumi:Stack::foo")
+	stackResource := newResource(
+		stackURN,
+		"",
+		"foo",
+		"",
+		nil,
+		nil,
+		nil,
+		false,
+	)
+	snap := p.Run(t, &deploy.Snapshot{Resources: []*resource.State{stackResource}})
+
+	require.NotEmpty(t, snap.Resources)
 
 	for _, resource := range snap.Resources {
 		switch urn := resource.URN; urn {
-		case provURN:
-			// break
+		case provURN, stackURN:
+			// continue
 		case resURN:
 			assert.Equal(t, actualID, resource.ID)
 		default:
 			t.Fatalf("unexpected resource %v", urn)
 		}
+
+		// Imports should not set our created/updated timestamps.
+		assert.Nil(t, resource.Created)
+		assert.Nil(t, resource.Updated)
 	}
 }
 

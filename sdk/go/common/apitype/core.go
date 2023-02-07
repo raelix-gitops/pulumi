@@ -331,8 +331,8 @@ type ResourceV3 struct {
 	DeletedWith resource.URN `json:"deletedWith,omitempty" yaml:"deletedWith,omitempty"`
 	// Created tracks when this resource was created. Checkpoints prior to early 2023 do not include this.
 	Created *time.Time `json:"created,omitempty" yaml:"created,omitempty"`
-	// Modified tracks the last time this resource's state was changed for any reason except deletions.
-	Modified *time.Time `json:"modified,omitempty" yaml:"modified,omitempty"`
+	// Updated tracks when this resources was last modified as part of an update. Checkpoints prior to early 2023 do not include this.
+	Updated *time.Time `json:"updated,omitempty" yaml:"updated,omitempty"`
 }
 
 // ManifestV1 captures meta-information about this checkpoint file, such as versions of binaries, etc.

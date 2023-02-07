@@ -48,8 +48,8 @@ type State struct {
 	ImportID                ID                    // the resource's import id, if this was an imported resource.
 	RetainOnDelete          bool                  // if set to True, the providers Delete method will not be called for this resource.
 	DeletedWith             URN                   // If set, the providers Delete method will not be called for this resource if specified resource is being deleted as well.
-	Created                 *time.Time
-	Modified                *time.Time
+	Created                 *time.Time            // If set, the time when the provider originally created this resource.
+	Updated                 *time.Time            // If set, the last time the resource was modified during an update.
 }
 
 func (s *State) GetAliasURNs() []URN {
@@ -70,7 +70,7 @@ func NewState(t tokens.Type, urn URN, custom bool, del bool, id ID,
 	external bool, dependencies []URN, initErrors []string, provider string,
 	propertyDependencies map[PropertyKey][]URN, pendingReplacement bool,
 	additionalSecretOutputs []PropertyKey, aliases []URN, timeouts *CustomTimeouts,
-	importID ID, retainOnDelete bool, deletedWith URN, created *time.Time, modified *time.Time,
+	importID ID, retainOnDelete bool, deletedWith URN, created *time.Time, updated *time.Time,
 ) *State {
 	contract.Assertf(t != "", "type was empty")
 	contract.Assertf(custom || id == "", "is custom or had empty ID")
@@ -98,7 +98,7 @@ func NewState(t tokens.Type, urn URN, custom bool, del bool, id ID,
 		RetainOnDelete:          retainOnDelete,
 		DeletedWith:             deletedWith,
 		Created:                 created,
-		Modified:                modified,
+		Updated:                 updated,
 	}
 
 	if timeouts != nil {

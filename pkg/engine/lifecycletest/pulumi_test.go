@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/blang/semver"
 	pbempty "github.com/golang/protobuf/ptypes/empty"
@@ -4594,4 +4595,100 @@ func TestPendingDeleteReplacement(t *testing.T) {
 	assert.False(t, snap.Resources[1].Delete)
 	assert.Equal(t, snap.Resources[2].Type, tokens.Type("pkgA:m:typB"))
 	assert.False(t, snap.Resources[2].Delete)
+}
+
+func TestTimestampTracking(t *testing.T) {
+	t.Parallel()
+
+	p := &TestPlan{}
+
+	loaders := []*deploytest.ProviderLoader{
+		deploytest.NewProviderLoader("pkgA", semver.MustParse("1.0.0"), func() (plugin.Provider, error) {
+			return &deploytest.Provider{
+				CreateF: func(urn resource.URN, news resource.PropertyMap, timeout float64,
+					preview bool,
+				) (resource.ID, resource.PropertyMap, resource.Status, error) {
+					return "created-id", news, resource.StatusOK, nil
+				},
+				DiffF: func(urn resource.URN, id resource.ID,
+					olds, news resource.PropertyMap, ignoreChanges []string,
+				) (plugin.DiffResult, error) {
+					return plugin.DiffResult{Changes: plugin.DiffSome}, nil
+				},
+				UpdateF: func(_ resource.URN, _ resource.ID, _, _ resource.PropertyMap, _ float64,
+					_ []string, _ bool,
+				) (resource.PropertyMap, resource.Status, error) {
+					outputs := resource.NewPropertyMapFromMap(map[string]interface{}{
+						"foo": "bar",
+					})
+					return outputs, resource.StatusOK, nil
+				},
+			}, nil
+		}, deploytest.WithoutGrpc),
+	}
+
+	program := deploytest.NewLanguageRuntime(func(info plugin.RunInfo, monitor *deploytest.ResourceMonitor) error {
+		_, _, _, err := monitor.RegisterResource(
+			resource.RootStackType,
+			info.Project+"-"+info.Stack,
+			false,
+			deploytest.ResourceOptions{})
+		require.NoError(t, err)
+
+		_, _, _, err = monitor.RegisterResource(
+			"pkgA:m:typA",
+			"resA",
+			true,
+			deploytest.ResourceOptions{})
+		require.NoError(t, err)
+
+		return nil
+	})
+
+	p.Options.Host = deploytest.NewPluginHost(nil, nil, program, loaders...)
+
+	// Run an update to create the resource -- created and updated should be set and equal.
+	p.Steps = []TestStep{{Op: Update, SkipPreview: true}}
+	snap := p.Run(t, nil)
+	creationTimes := []*time.Time{}
+	require.NotEmpty(t, snap.Resources)
+	for _, resource := range snap.Resources {
+		creationTimes = append(creationTimes, resource.Created)
+
+		assert.NotNil(t, resource.Created, resource.URN)
+		assert.NotNil(t, resource.Updated, resource.URN)
+		assert.Equal(t, resource.Created, resource.Updated, resource.URN)
+	}
+
+	// Run a refresh -- created and updated should be unchanged.
+	p.Steps = []TestStep{{Op: Refresh, SkipPreview: true}}
+	snap = p.Run(t, snap)
+	require.NotEmpty(t, snap.Resources)
+	for _, resource := range snap.Resources {
+		assert.NotNil(t, resource.Created, resource.URN)
+		assert.NotNil(t, resource.Updated, resource.URN)
+		assert.Equal(t, resource.Created, resource.Updated, resource.URN)
+		assert.Contains(t, creationTimes, resource.Created, resource.URN)
+	}
+
+	// Run another update -- updated should be greater than created for resA,
+	// everything else should be untouched.
+	p.Steps = []TestStep{{Op: Update, SkipPreview: true}}
+	snap = p.Run(t, snap)
+	require.NotEmpty(t, snap.Resources)
+	for _, resource := range snap.Resources {
+		assert.NotNil(t, resource.Created, resource.URN)
+		assert.NotNil(t, resource.Updated, resource.URN)
+		assert.Contains(t, creationTimes, resource.Created, resource.URN)
+
+		switch resource.Type {
+		case "pkgA:m:typA":
+			assert.Greater(t, *resource.Updated, *resource.Created, resource.URN)
+			assert.NotContains(t, creationTimes, resource.Updated, resource.URN)
+		case "pulumi:providers:pkgA", "pulumi:pulumi:Stack":
+			// Nothing else to do.
+		default:
+			require.FailNow(t, "unrecognized resource type", resource.Type)
+		}
+	}
 }
