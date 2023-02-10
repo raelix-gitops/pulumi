@@ -39,7 +39,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/encoding"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/fsutil"
@@ -96,12 +95,12 @@ func (b *localBackend) newQuery(
 
 func (b *localBackend) newUpdate(
 	ctx context.Context,
-	stackName tokens.Name,
+	ref *localBackendReference,
 	op backend.UpdateOperation) (*update, error) {
-	contract.Require(stackName != "", "stackName")
+	contract.Require(ref != nil, "ref")
 
 	// Construct the deployment target.
-	target, err := b.getTarget(ctx, stackName,
+	target, err := b.getTarget(ctx, ref,
 		op.StackConfiguration.Config, op.StackConfiguration.Decrypter)
 	if err != nil {
 		return nil, err
@@ -118,16 +117,17 @@ func (b *localBackend) newUpdate(
 
 func (b *localBackend) getTarget(
 	ctx context.Context,
-	stackName tokens.Name,
+	stack *localBackendReference,
 	cfg config.Map,
 	dec config.Decrypter) (*deploy.Target, error) {
-	snapshot, _, err := b.getStack(ctx, stackName)
+	contract.Requiref(stack != nil, "stack", "stack was nil")
+	snapshot, _, err := b.getStack(ctx, stack)
 	if err != nil {
 		return nil, err
 	}
 	return &deploy.Target{
-		Name:         stackName,
-		Organization: "", // filestate has no organizations
+		Name:         stack.Name(),
+		Organization: "organization", // filestate has no organizations really, but we just always say it's "organization"
 		Config:       cfg,
 		Decrypter:    dec,
 		Snapshot:     snapshot,
@@ -136,14 +136,14 @@ func (b *localBackend) getTarget(
 
 func (b *localBackend) getStack(
 	ctx context.Context,
-	name tokens.Name) (*deploy.Snapshot, string, error) {
-	if name == "" {
+	ref *localBackendReference) (*deploy.Snapshot, string, error) {
+	if ref == nil {
 		return nil, "", errors.New("invalid empty stack name")
 	}
 
-	file := b.stackPath(name)
+	file := b.stackPath(ref)
 
-	chk, err := b.getCheckpoint(name)
+	chk, err := b.getCheckpoint(ref)
 	if err != nil {
 		return nil, file, fmt.Errorf("failed to load checkpoint: %w", err)
 	}
@@ -165,8 +165,8 @@ func (b *localBackend) getStack(
 }
 
 // GetCheckpoint loads a checkpoint file for the given stack in this project, from the current project workspace.
-func (b *localBackend) getCheckpoint(stackName tokens.Name) (*apitype.CheckpointV3, error) {
-	chkpath := b.stackPath(stackName)
+func (b *localBackend) getCheckpoint(ref *localBackendReference) (*apitype.CheckpointV3, error) {
+	chkpath := b.stackPath(ref)
 	bytes, err := b.bucket.ReadAll(context.TODO(), chkpath)
 	if err != nil {
 		return nil, err
@@ -180,10 +180,10 @@ func (b *localBackend) getCheckpoint(stackName tokens.Name) (*apitype.Checkpoint
 }
 
 func (b *localBackend) saveCheckpoint(
-	name tokens.Name, checkpoint *apitype.VersionedCheckpoint) (backupFile string, file string, _ error) {
+	ref *localBackendReference, checkpoint *apitype.VersionedCheckpoint) (backupFile string, file string, _ error) {
 
 	// Make a serializable stack and then use the encoder to encode it.
-	file = b.stackPath(name)
+	file = b.stackPath(ref)
 	m, ext := encoding.Detect(strings.TrimSuffix(file, ".gz"))
 	if m == nil {
 		return "", "", fmt.Errorf("resource serialization failed; illegal markup extension: '%v'", ext)
@@ -255,7 +255,7 @@ func (b *localBackend) saveCheckpoint(
 		}
 	}
 
-	logging.V(7).Infof("Saved stack %s checkpoint to: %s (backup=%s)", name, file, backupFile)
+	logging.V(7).Infof("Saved stack %s checkpoint to: %s (backup=%s)", ref.FullyQualifiedName(), file, backupFile)
 
 	// And if we are retaining historical checkpoint information, write it out again
 	if cmdutil.IsTruthy(os.Getenv("PULUMI_RETAIN_CHECKPOINTS")) {
@@ -267,13 +267,17 @@ func (b *localBackend) saveCheckpoint(
 	return backupFile, file, nil
 }
 
-func (b *localBackend) saveStack(name tokens.Name, snap *deploy.Snapshot, sm secrets.Manager) (string, error) {
-	chk, err := stack.SerializeCheckpoint(name, snap, sm, false /* showSecrets */)
+func (b *localBackend) saveStack(
+	ref *localBackendReference, snap *deploy.Snapshot,
+	sm secrets.Manager) (string, error) {
+
+	contract.Requiref(ref != nil, "ref", "ref was nil")
+	chk, err := stack.SerializeCheckpoint(ref.FullyQualifiedName(), snap, sm, false /* showSecrets */)
 	if err != nil {
 		return "", fmt.Errorf("serializaing checkpoint: %w", err)
 	}
 
-	backup, file, err := b.saveCheckpoint(name, chk)
+	backup, file, err := b.saveCheckpoint(ref, chk)
 	if err != nil {
 		return "", err
 	}
@@ -294,14 +298,14 @@ func (b *localBackend) saveStack(name tokens.Name, snap *deploy.Snapshot, sm sec
 }
 
 // removeStack removes information about a stack from the current workspace.
-func (b *localBackend) removeStack(name tokens.Name) error {
-	contract.Require(name != "", "name")
+func (b *localBackend) removeStack(ref *localBackendReference) error {
+	contract.Requiref(ref != nil, "ref", "ref was nil")
 
 	// Just make a backup of the file and don't write out anything new.
-	file := b.stackPath(name)
+	file := b.stackPath(ref)
 	backupTarget(b.bucket, file, false)
 
-	historyDir := b.historyDirectory(name)
+	historyDir := b.historyDirectory(ref)
 	return removeAllByPrefix(b.bucket, historyDir)
 }
 
@@ -327,8 +331,8 @@ func backupTarget(bucket Bucket, file string, keepOriginal bool) string {
 }
 
 // backupStack copies the current Checkpoint file to ~/.pulumi/backups.
-func (b *localBackend) backupStack(name tokens.Name) error {
-	contract.Require(name != "", "name")
+func (b *localBackend) backupStack(ref *localBackendReference) error {
+	contract.Requiref(ref != nil, "ref", "ref was nil")
 
 	// Exit early if backups are disabled.
 	if cmdutil.IsTruthy(os.Getenv(DisableCheckpointBackupsEnvVar)) {
@@ -336,14 +340,14 @@ func (b *localBackend) backupStack(name tokens.Name) error {
 	}
 
 	// Read the current checkpoint file. (Assuming it aleady exists.)
-	stackPath := b.stackPath(name)
+	stackPath := b.stackPath(ref)
 	byts, err := b.bucket.ReadAll(context.TODO(), stackPath)
 	if err != nil {
 		return err
 	}
 
 	// Get the backup directory.
-	backupDir := b.backupDirectory(name)
+	backupDir := b.backupDirectory(ref)
 
 	// Write out the new backup checkpoint file.
 	stackFile := filepath.Base(stackPath)
@@ -360,16 +364,21 @@ func (b *localBackend) backupStack(name tokens.Name) error {
 	return b.bucket.WriteAll(context.TODO(), filepath.Join(backupDir, backupFile), byts, nil)
 }
 
-func (b *localBackend) stackPath(stack tokens.Name) string {
+func (b *localBackend) stackPath(ref *localBackendReference) string {
 	path := filepath.Join(b.StateDir(), workspace.StackDir)
-	if stack == "" {
+	if ref == nil {
 		return path
 	}
 
 	// We can't use listBucket here for as we need to do a partial prefix match on filename, while the
 	// "dir" option to listBucket is always suffixed with "/". Also means we don't need to save any
 	// results in a slice.
-	plainPath := filepath.ToSlash(filepath.Join(path, fsutil.NamePath(stack)) + ".json")
+	var plainPath string
+	if ref.project != "" {
+		plainPath = filepath.ToSlash(filepath.Join(path, fsutil.NamePath(ref.project), fsutil.NamePath(ref.name)) + ".json")
+	} else {
+		plainPath = filepath.ToSlash(filepath.Join(path, fsutil.NamePath(ref.name)) + ".json")
+	}
 	gzipedPath := plainPath + ".gz"
 
 	bucketIter := b.bucket.List(&blob.ListOptions{
@@ -405,22 +414,29 @@ func (b *localBackend) stackPath(stack tokens.Name) string {
 	return plainPath
 }
 
-func (b *localBackend) historyDirectory(stack tokens.Name) string {
-	contract.Require(stack != "", "stack")
-	return filepath.Join(b.StateDir(), workspace.HistoryDir, fsutil.NamePath(stack))
+func (b *localBackend) historyDirectory(stack *localBackendReference) string {
+	contract.Require(stack != nil, "stack")
+	if stack.project == "" {
+		return filepath.Join(b.StateDir(), workspace.HistoryDir, fsutil.NamePath(stack.name))
+	}
+	return filepath.Join(b.StateDir(), workspace.HistoryDir, fsutil.NamePath(stack.project), fsutil.NamePath(stack.name))
+
 }
 
-func (b *localBackend) backupDirectory(stack tokens.Name) string {
-	contract.Require(stack != "", "stack")
-	return filepath.Join(b.StateDir(), workspace.BackupDir, fsutil.NamePath(stack))
+func (b *localBackend) backupDirectory(stack *localBackendReference) string {
+	contract.Require(stack != nil, "stack")
+	if stack.project == "" {
+		return filepath.Join(b.StateDir(), workspace.BackupDir, fsutil.NamePath(stack.name))
+	}
+	return filepath.Join(b.StateDir(), workspace.BackupDir, fsutil.NamePath(stack.project), fsutil.NamePath(stack.name))
 }
 
 // getHistory returns locally stored update history. The first element of the result will be
 // the most recent update record.
-func (b *localBackend) getHistory(name tokens.Name, pageSize int, page int) ([]backend.UpdateInfo, error) {
-	contract.Require(name != "", "name")
+func (b *localBackend) getHistory(stack *localBackendReference, pageSize int, page int) ([]backend.UpdateInfo, error) {
+	contract.Require(stack != nil, "stack")
 
-	dir := b.historyDirectory(name)
+	dir := b.historyDirectory(stack)
 	// TODO: we could consider optimizing the list operation using `page` and `pageSize`.
 	// Unfortunately, this is mildly invasive given the gocloud List API.
 	allFiles, err := listBucket(b.bucket, dir)
@@ -489,9 +505,9 @@ func (b *localBackend) getHistory(name tokens.Name, pageSize int, page int) ([]b
 	return updates, nil
 }
 
-func (b *localBackend) renameHistory(oldName tokens.Name, newName tokens.Name) error {
-	contract.Require(oldName != "", "oldName")
-	contract.Require(newName != "", "newName")
+func (b *localBackend) renameHistory(oldName *localBackendReference, newName *localBackendReference) error {
+	contract.Require(oldName != nil, "oldName")
+	contract.Require(newName != nil, "newName")
 
 	oldHistory := b.historyDirectory(oldName)
 	newHistory := b.historyDirectory(newName)
@@ -513,12 +529,12 @@ func (b *localBackend) renameHistory(oldName tokens.Name, newName tokens.Name) e
 		// the stack name part but retain the other parts. If we find files that don't match this format
 		// ignore them.
 		dashIndex := strings.LastIndex(fileName, "-")
-		if dashIndex == -1 || (fileName[:dashIndex] != oldName.String()) {
+		if dashIndex == -1 || (fileName[:dashIndex] != oldName.name.String()) {
 			// No dash or the string up to the dash isn't the old name
 			continue
 		}
 
-		newFileName := string(newName) + fileName[dashIndex:]
+		newFileName := newName.name.String() + fileName[dashIndex:]
 		newBlob := path.Join(newHistory, newFileName)
 
 		if err := b.bucket.Copy(context.TODO(), newBlob, oldBlob, nil); err != nil {
@@ -533,13 +549,13 @@ func (b *localBackend) renameHistory(oldName tokens.Name, newName tokens.Name) e
 }
 
 // addToHistory saves the UpdateInfo and makes a copy of the current Checkpoint file.
-func (b *localBackend) addToHistory(name tokens.Name, update backend.UpdateInfo) error {
-	contract.Require(name != "", "name")
+func (b *localBackend) addToHistory(ref *localBackendReference, update backend.UpdateInfo) error {
+	contract.Require(ref != nil, "ref")
 
-	dir := b.historyDirectory(name)
+	dir := b.historyDirectory(ref)
 
 	// Prefix for the update and checkpoint files.
-	pathPrefix := path.Join(dir, fmt.Sprintf("%s-%d", name, time.Now().UnixNano()))
+	pathPrefix := path.Join(dir, fmt.Sprintf("%s-%d", ref.name, time.Now().UnixNano()))
 
 	m, ext := encoding.JSON, "json"
 	if b.gzip {
@@ -560,5 +576,5 @@ func (b *localBackend) addToHistory(name tokens.Name, update backend.UpdateInfo)
 
 	// Make a copy of the checkpoint file. (Assuming it already exists.)
 	checkpointFile := fmt.Sprintf("%s.checkpoint.%s", pathPrefix, ext)
-	return b.bucket.Copy(context.TODO(), checkpointFile, b.stackPath(name), nil)
+	return b.bucket.Copy(context.TODO(), checkpointFile, b.stackPath(ref), nil)
 }

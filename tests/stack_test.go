@@ -64,8 +64,8 @@ func TestStackCommands(t *testing.T) {
 			t.Fatalf("No current stack?")
 		}
 
-		assert.Equal(t, "foo", *current)
-		assert.Contains(t, stacks, "foo")
+		assert.Equal(t, "organization/pulumi-test/foo", *current)
+		assert.Contains(t, stacks, "organization/pulumi-test/foo")
 
 		e.RunCommand("pulumi", "stack", "rm", "foo", "--yes")
 
@@ -94,7 +94,7 @@ func TestStackCommands(t *testing.T) {
 		if current == nil {
 			t.Fatalf("No stack was labeled as current among: %v", stacks)
 		}
-		assert.Equal(t, "lothric", *current)
+		assert.Equal(t, "organization/pulumi-test/lothric", *current)
 
 		// Select works
 		e.RunCommand("pulumi", "stack", "select", "blighttown")
@@ -102,7 +102,7 @@ func TestStackCommands(t *testing.T) {
 		if current == nil {
 			t.Fatalf("No stack was labeled as current among: %v", stacks)
 		}
-		assert.Equal(t, "blighttown", *current)
+		assert.Equal(t, "organization/pulumi-test/blighttown", *current)
 
 		// Error
 		out, err := e.RunCommandExpectError("pulumi", "stack", "select", "anor-londo")
@@ -129,7 +129,7 @@ func TestStackCommands(t *testing.T) {
 		if current == nil {
 			t.Fatalf("No stack was labeled as current among: %v", stacks)
 		}
-		assert.Equal(t, "second", *current)
+		assert.Equal(t, "organization/pulumi-test/second", *current)
 
 		// Specifying `--no-select` prevents selection.
 		e.RunCommand("pulumi", "stack", "init", "third", "--no-select")
@@ -138,12 +138,12 @@ func TestStackCommands(t *testing.T) {
 			t.Fatalf("No stack was labeled as current among: %v", stacks)
 		}
 		// "second" should still be selected.
-		assert.Equal(t, "second", *current)
+		assert.Equal(t, "organization/pulumi-test/second", *current)
 
 		assert.Equal(t, 3, len(stacks))
-		assert.Contains(t, stacks, "first")
-		assert.Contains(t, stacks, "second")
-		assert.Contains(t, stacks, "third")
+		assert.Contains(t, stacks, "organization/pulumi-test/first")
+		assert.Contains(t, stacks, "organization/pulumi-test/second")
+		assert.Contains(t, stacks, "organization/pulumi-test/third")
 	})
 
 	t.Run("StackUnselect", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestStackCommands(t *testing.T) {
 		if current == nil {
 			t.Fatalf("No stack was labeled as current among: %v", stacks)
 		}
-		assert.Equal(t, "two", *current)
+		assert.Equal(t, "organization/pulumi-test/two", *current)
 
 		e.RunCommand("pulumi", "stack", "unselect")
 		_, updatedCurrentStack := integration.GetStacks(e)
@@ -197,13 +197,13 @@ func TestStackCommands(t *testing.T) {
 		e.RunCommand("pulumi", "stack", "rm", "majula", "--yes")
 		stacks, _ = integration.GetStacks(e)
 		assert.Equal(t, 2, len(stacks))
-		assert.Contains(t, stacks, "blighttown")
-		assert.Contains(t, stacks, "lothric")
+		assert.Contains(t, stacks, "organization/pulumi-test/blighttown")
+		assert.Contains(t, stacks, "organization/pulumi-test/lothric")
 
 		e.RunCommand("pulumi", "stack", "rm", "lothric", "--yes")
 		stacks, _ = integration.GetStacks(e)
 		assert.Equal(t, 1, len(stacks))
-		assert.Contains(t, stacks, "blighttown")
+		assert.Contains(t, stacks, "organization/pulumi-test/blighttown")
 
 		e.RunCommand("pulumi", "stack", "rm", "blighttown", "--yes")
 		stacks, _ = integration.GetStacks(e)
@@ -367,7 +367,7 @@ func TestStackBackups(t *testing.T) {
 		const stackName = "imulup"
 
 		// Get the path to the backup directory for this project.
-		backupDir, err := getStackProjectBackupDir(e, stackName)
+		backupDir, err := getStackProjectBackupDir(e, "stack_outputs", stackName)
 		assert.NoError(t, err, "getting stack project backup path")
 		defer func() {
 			if !t.Failed() {
@@ -561,8 +561,8 @@ func TestLocalStateLocking(t *testing.T) {
 
 // stackFileFormatAsserters returns a function to assert that the current file
 // format is for gzip and plain formats respectively.
-func stackFileFormatAsserters(t *testing.T, e *ptesting.Environment, stackName string) (func(), func()) {
-	stacksDir := filepath.Join(".pulumi", "stacks")
+func stackFileFormatAsserters(t *testing.T, e *ptesting.Environment, projectName, stackName string) (func(), func()) {
+	stacksDir := filepath.Join(".pulumi", "stacks", projectName)
 	pathStack := filepath.Join(stacksDir, stackName+".json")
 	pathStackGzip := pathStack + ".gz"
 	pathStackBak := pathStack + ".bak"
@@ -623,7 +623,7 @@ func TestLocalStateGzip(t *testing.T) { //nolint:paralleltest
 	e.RunCommand("yarn", "install")
 	e.RunCommand("pulumi", "up", "--non-interactive", "--yes", "--skip-preview")
 
-	assertGzipFileFormat, assertPlainFileFormat := stackFileFormatAsserters(t, e, stackName)
+	assertGzipFileFormat, assertPlainFileFormat := stackFileFormatAsserters(t, e, "stack_dependencies", stackName)
 	switchGzipOff := func() { e.Setenv(filestate.PulumiFilestateGzipEnvVar, "0") }
 	switchGzipOn := func() { e.Setenv(filestate.PulumiFilestateGzipEnvVar, "1") }
 	pulumiUp := func() { e.RunCommand("pulumi", "up", "--non-interactive", "--yes", "--skip-preview") }
@@ -692,10 +692,11 @@ func assertBackupStackFile(t *testing.T, stackName string, file os.DirEntry, bef
 	assert.True(t, parsedTime < after, "False: %v < %v", parsedTime, after)
 }
 
-func getStackProjectBackupDir(e *ptesting.Environment, stackName string) (string, error) {
+func getStackProjectBackupDir(e *ptesting.Environment, projectName, stackName string) (string, error) {
 	return filepath.Join(e.RootPath,
 		workspace.BookkeepingDir,
 		workspace.BackupDir,
+		projectName,
 		stackName,
 	), nil
 }
