@@ -933,7 +933,7 @@ func (internalIllegalTeamsError) Error() string {
 	var ghIssuesRef = "https://github.com/pulumi/pulumi/issues/new" +
 		"?assignees=&labels=kind%2Fbug%2Cneeds-triage&template=bug.yaml"
 	return fmt.Sprintf(
-		"A backend was illegally with creation options that are not allowed. "+
+		"A backend was used with invalid creation options. "+
 			"This is a bug. We would really appreciate it if you could report this bug at %s",
 		ghIssuesRef,
 	)
