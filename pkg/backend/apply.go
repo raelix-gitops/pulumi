@@ -129,12 +129,24 @@ func PreviewThenPrompt(ctx context.Context, kind apitype.UpdateKind, stack Stack
 		return plan, changes, nil
 	}
 
+	stats := computeUpdateStats(events)
+
 	infoPrefix := "\b" + op.Opts.Display.Color.Colorize(colors.SpecWarning+"info: "+colors.Reset)
 	if kind != apitype.UpdateUpdate {
 		// If not an update, we can skip displaying warnings
-	} else if countResources(events) == 0 {
-		// This is an update and there are no resources being CREATED
-		fmt.Print(infoPrefix, "There are no resources in your stack (other than the stack resource).\n\n")
+	} else {
+		if stats.numNonStackResources == 0 {
+			// Warn that no resources being CREATED
+			fmt.Print(infoPrefix, "There are no resources in your stack (other than the stack resource).\n\n")
+		}
+		if len(stats.droppedResources) > 0 {
+			// Warn that resources will be dropped
+			fmt.Printf(infoPrefix+"This update will leave %d resource(s) untracked in your environment:\n", len(stats.droppedResources))
+			for _, urn := range stats.droppedResources {
+				fmt.Printf("    - %s\n", urn)
+			}
+			fmt.Print("\n")
+		}
 	}
 
 	// Otherwise, ensure the user wants to proceed.
@@ -252,8 +264,13 @@ func PreviewThenPromptThenExecute(ctx context.Context, kind apitype.UpdateKind, 
 	return changes, res
 }
 
-func countResources(events []engine.Event) int {
-	count := 0
+type updateStats struct {
+	numNonStackResources int
+	droppedResources     []resource.URN
+}
+
+func computeUpdateStats(events []engine.Event) updateStats {
+	var stats updateStats
 
 	for _, e := range events {
 		if e.Type != engine.ResourcePreEvent {
@@ -265,12 +282,18 @@ func countResources(events []engine.Event) int {
 			continue
 		}
 
-		if p.Metadata.Type.String() == "pulumi:pulumi:Stack" {
-			continue
+		if p.Metadata.Type.String() != "pulumi:pulumi:Stack" {
+			stats.numNonStackResources++
 		}
-		count++
+
+		switch p.Metadata.Op {
+		case deploy.OpDelete, deploy.OpReplace:
+			if p.Metadata.Old != nil && p.Metadata.Old.State != nil && p.Metadata.Old.State.RetainOnDelete {
+				stats.droppedResources = append(stats.droppedResources, p.Metadata.URN)
+			}
+		}
 	}
-	return count
+	return stats
 }
 
 func createDiff(updateKind apitype.UpdateKind, events []engine.Event, displayOpts display.Options) string {

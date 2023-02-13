@@ -305,15 +305,33 @@ func (data *resourceRowData) ColorizedColumns() []string {
 
 	diagInfo := data.diagInfo
 
+	var status string
 	if done {
 		failed := data.failed || diagInfo.ErrorCount > 0
-		columns[statusColumn] = data.display.getStepDoneDescription(step, failed)
+		status = data.display.getStepDoneDescription(step, failed)
 	} else {
-		columns[statusColumn] = data.display.getStepInProgressDescription(step)
+		status = data.display.getStepInProgressDescription(step)
 	}
 
+	columns[statusColumn] = embellishStatusText(status, step)
 	columns[infoColumn] = data.getInfoColumn()
 	return columns
+}
+
+func embellishStatusText(status string, step engine.StepEventMetadata) string {
+	// Determine if the delete is a 'drop' from the retain on delete flag.
+	shouldDrop := false
+	if step.Old != nil && step.Old.State != nil && step.Old.State.RetainOnDelete {
+		shouldDrop = true
+	}
+	switch step.Op {
+	// OpDelete and OpReplace should indicate retain on delete behavior.
+	case deploy.OpDelete, deploy.OpReplace, deploy.OpCreateReplacement, deploy.OpDeleteReplaced:
+		if shouldDrop {
+			status += "[drop]"
+		}
+	}
+	return status
 }
 
 func (data *resourceRowData) getInfoColumn() string {
