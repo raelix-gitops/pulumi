@@ -1,0 +1,4 @@
+changes:
+- type: fix
+  scope: auto/go
+  description: Fixed missing path flag to honor the CLI behavior
