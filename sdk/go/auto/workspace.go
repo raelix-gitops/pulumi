@@ -46,22 +46,17 @@ type Workspace interface {
 	PostCommandCallback(context.Context, string) error
 	// GetConfig returns the value associated with the specified stack name and key,
 	// scoped to the current workspace.
-	GetConfig(context.Context, string, string) (ConfigValue, error)
-	// GetConfigWithPath returns the value associated with the specified stack name and key path,
-	// scoped to the current workspace.
-	GetConfigWithPath(context.Context, string, string) (ConfigValue, error)
+	GetConfig(context.Context, string, string, ConfigOptions) (ConfigValue, error)
 	// GetAllConfig returns the config map for the specified stack name, scoped to the current workspace.
 	GetAllConfig(context.Context, string) (ConfigMap, error)
 	// SetConfig sets the specified key-value pair on the provided stack name.
-	SetConfig(context.Context, string, string, ConfigValue) error
-	// SetConfigWithPath sets the specified key path-value pair on the provided stack name.
-	SetConfigWithPath(context.Context, string, string, ConfigValue) error
+	SetConfig(context.Context, string, string, ConfigValue, ConfigOptions) error
 	// SetAllConfig sets all values in the provided config map for the specified stack name.
-	SetAllConfig(context.Context, string, ConfigMap) error
+	SetAllConfig(context.Context, string, ConfigMap, ConfigOptions) error
 	// RemoveConfig removes the specified key-value pair on the provided stack name.
-	RemoveConfig(context.Context, string, string) error
+	RemoveConfig(context.Context, string, string, ConfigOptions) error
 	// RemoveAllConfig removes all values in the provided key list for the specified stack name.
-	RemoveAllConfig(context.Context, string, []string) error
+	RemoveAllConfig(context.Context, string, []string, ConfigOptions) error
 	// RefreshConfig gets and sets the config map used with the last Update for Stack matching stack name.
 	RefreshConfig(context.Context, string) (ConfigMap, error)
 	// GetEnvVars returns the environment values scoped to the current workspace.
@@ -123,6 +118,12 @@ type Workspace interface {
 type ConfigValue struct {
 	Value  string
 	Secret bool
+}
+
+// ConfigOptions is a configuration option used by a Pulumi program.
+// Allows to use the path flag while getting/setting the configuration.
+type ConfigOptions struct {
+	Path bool
 }
 
 // ConfigMap is a map of ConfigValue used by Pulumi programs.
