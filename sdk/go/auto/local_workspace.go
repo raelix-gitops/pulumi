@@ -146,6 +146,21 @@ func (l *LocalWorkspace) GetConfig(ctx context.Context, stackName string, key st
 	return val, nil
 }
 
+// GetConfigWithPath returns the value associated with the specified stack name and key path,
+// scoped to the current workspace. LocalWorkspace reads this config from the matching Pulumi.stack.yaml file.
+func (l *LocalWorkspace) GetConfigWithPath(ctx context.Context, stackName string, key string) (ConfigValue, error) {
+	var val ConfigValue
+	stdout, stderr, errCode, err := l.runPulumiCmdSync(ctx, "config", "get", "--path", key, "--json", "--stack", stackName)
+	if err != nil {
+		return val, newAutoError(fmt.Errorf("unable to read config: %w", err), stdout, stderr, errCode)
+	}
+	err = json.Unmarshal([]byte(stdout), &val)
+	if err != nil {
+		return val, fmt.Errorf("unable to unmarshal config value: %w", err)
+	}
+	return val, nil
+}
+
 // GetAllConfig returns the config map for the specified stack name, scoped to the current workspace.
 // LocalWorkspace reads this config from the matching Pulumi.stack.yaml file.
 func (l *LocalWorkspace) GetAllConfig(ctx context.Context, stackName string) (ConfigMap, error) {
@@ -164,6 +179,23 @@ func (l *LocalWorkspace) GetAllConfig(ctx context.Context, stackName string) (Co
 // SetConfig sets the specified key-value pair on the provided stack name.
 // LocalWorkspace writes this value to the matching Pulumi.<stack>.yaml file in Workspace.WorkDir().
 func (l *LocalWorkspace) SetConfig(ctx context.Context, stackName string, key string, val ConfigValue) error {
+	secretArg := "--plaintext"
+	if val.Secret {
+		secretArg = "--secret"
+	}
+
+	stdout, stderr, errCode, err := l.runPulumiCmdSync(ctx,
+		"config", "set", key, secretArg, "--stack", stackName,
+		"--non-interactive", "--", val.Value)
+	if err != nil {
+		return newAutoError(fmt.Errorf("unable to set config: %w", err), stdout, stderr, errCode)
+	}
+	return nil
+}
+
+// SetConfigWithPath sets the specified key path-value pair on the provided stack name.
+// LocalWorkspace writes this value to the matching Pulumi.<stack>.yaml file in Workspace.WorkDir().
+func (l *LocalWorkspace) SetConfigWithPath(ctx context.Context, stackName string, key string, val ConfigValue) error {
 	secretArg := "--plaintext"
 	if val.Secret {
 		secretArg = "--secret"

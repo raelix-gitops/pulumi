@@ -47,10 +47,15 @@ type Workspace interface {
 	// GetConfig returns the value associated with the specified stack name and key,
 	// scoped to the current workspace.
 	GetConfig(context.Context, string, string) (ConfigValue, error)
+	// GetConfigWithPath returns the value associated with the specified stack name and key path,
+	// scoped to the current workspace.
+	GetConfigWithPath(context.Context, string, string) (ConfigValue, error)
 	// GetAllConfig returns the config map for the specified stack name, scoped to the current workspace.
 	GetAllConfig(context.Context, string) (ConfigMap, error)
 	// SetConfig sets the specified key-value pair on the provided stack name.
 	SetConfig(context.Context, string, string, ConfigValue) error
+	// SetConfigWithPath sets the specified key path-value pair on the provided stack name.
+	SetConfigWithPath(context.Context, string, string, ConfigValue) error
 	// SetAllConfig sets all values in the provided config map for the specified stack name.
 	SetAllConfig(context.Context, string, ConfigMap) error
 	// RemoveConfig removes the specified key-value pair on the provided stack name.
