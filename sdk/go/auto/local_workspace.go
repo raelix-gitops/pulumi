@@ -139,11 +139,11 @@ func (l *LocalWorkspace) GetConfig(ctx context.Context, stackName string, key st
 
 // GetConfigWithOptions returns the value associated with the specified stack name and key using the optional ConfigOptions,
 // scoped to the current workspace. LocalWorkspace reads this config from the matching Pulumi.stack.yaml file.
-func (l *LocalWorkspace) GetConfigWithOptions(ctx context.Context, stackName string, key string, options *ConfigOptions) (ConfigValue, error) {
+func (l *LocalWorkspace) GetConfigWithOptions(ctx context.Context, stackName string, key string, opts *ConfigOptions) (ConfigValue, error) {
 	var val ConfigValue
 	args := []string{"config", "get"}
-	if options != nil {
-		if options.Path {
+	if opts != nil {
+		if opts.Path {
 			args = append(args, "--path")
 		}
 	}
@@ -182,10 +182,10 @@ func (l *LocalWorkspace) SetConfig(ctx context.Context, stackName string, key st
 
 // SetConfigWithOptions sets the specified key-value pair on the provided stack name using the optional ConfigOptions.
 // LocalWorkspace writes this value to the matching Pulumi.<stack>.yaml file in Workspace.WorkDir().
-func (l *LocalWorkspace) SetConfigWithOptions(ctx context.Context, stackName string, key string, val ConfigValue, options *ConfigOptions) error {
+func (l *LocalWorkspace) SetConfigWithOptions(ctx context.Context, stackName string, key string, val ConfigValue, opts *ConfigOptions) error {
 	args := []string{"config", "set", "--stack", stackName}
-	if options != nil {
-		if options.Path {
+	if opts != nil {
+		if opts.Path {
 			args = append(args, "--path")
 		}
 	}
@@ -210,10 +210,10 @@ func (l *LocalWorkspace) SetAllConfig(ctx context.Context, stackName string, con
 
 // SetAllConfigWithOptions sets all values in the provided config map for the specified stack name using the optional ConfigOptions.
 // LocalWorkspace writes the config to the matching Pulumi.<stack>.yaml file in Workspace.WorkDir().
-func (l *LocalWorkspace) SetAllConfigWithOptions(ctx context.Context, stackName string, config ConfigMap, options *ConfigOptions) error {
+func (l *LocalWorkspace) SetAllConfigWithOptions(ctx context.Context, stackName string, config ConfigMap, opts *ConfigOptions) error {
 	args := []string{"config", "set-all", "--stack", stackName}
-	if options != nil {
-		if options.Path {
+	if opts != nil {
+		if opts.Path {
 			args = append(args, "--path")
 		}
 	}
@@ -240,10 +240,10 @@ func (l *LocalWorkspace) RemoveConfig(ctx context.Context, stackName string, key
 
 // RemoveConfigWithOptions removes the specified key-value pair on the provided stack name.
 // It will remove any matching values in the Pulumi.<stack>.yaml file in Workspace.WorkDir().
-func (l *LocalWorkspace) RemoveConfigWithOptions(ctx context.Context, stackName string, key string, options *ConfigOptions) error {
+func (l *LocalWorkspace) RemoveConfigWithOptions(ctx context.Context, stackName string, key string, opts *ConfigOptions) error {
 	args := []string{"config", "rm"}
-	if options != nil {
-		if options.Path {
+	if opts != nil {
+		if opts.Path {
 			args = append(args, "--path")
 		}
 	}
@@ -263,10 +263,10 @@ func (l *LocalWorkspace) RemoveAllConfig(ctx context.Context, stackName string, 
 
 // RemoveAllConfigWithOptions removes all values in the provided key list for the specified stack name using the optional ConfigOptions
 // It will remove any matching values in the Pulumi.<stack>.yaml file in Workspace.WorkDir().
-func (l *LocalWorkspace) RemoveAllConfigWithOptions(ctx context.Context, stackName string, keys []string, options *ConfigOptions) error {
+func (l *LocalWorkspace) RemoveAllConfigWithOptions(ctx context.Context, stackName string, keys []string, opts *ConfigOptions) error {
 	args := []string{"config", "rm-all", "--stack", stackName}
-	if options != nil {
-		if options.Path {
+	if opts != nil {
+		if opts.Path {
 			args = append(args, "--path")
 		}
 	}
