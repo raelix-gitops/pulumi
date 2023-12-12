@@ -19,7 +19,7 @@ permissions:
 jobs:
   ci:
     name: CI
-    uses: pulumi/pulumi/.github/workflows/ci.yml@master
+    uses: raelix-gitops/pulumi/.github/workflows/ci.yml@master
     permissions:
       contents: read
       id-token: write
