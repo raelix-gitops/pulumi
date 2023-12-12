@@ -1,0 +1,38 @@
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        description: "GitHub ref to use"
+        type: string
+      version:
+        required: true
+        description: "version to generate"
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  # To sign artifacts.
+  id-token: write
+
+jobs:
+  ci:
+    name: CI
+    uses: pulumi/pulumi/.github/workflows/ci.yml@master
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      ref: ${{ inputs.ref }}
+      version: ${{ inputs.version }}
+      lint: true
+      build-all-targets: false
+      test-version-sets: current
+      integration-test-platforms: ubuntu-latest
+      acceptance-test-platforms: ''
+      enable-coverage: false
+    secrets:
+      # Scope secrets to the minimum required:
+      PULUMI_BOT_TOKEN: ${{ secrets.PULUMI_BOT_TOKEN }}
+      PULUMI_PROD_ACCESS_TOKEN: ${{ secrets.PULUMI_PROD_ACCESS_TOKEN }}
